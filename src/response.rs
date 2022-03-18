@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::fmt;
 use hyper::{StatusCode};
 use encoding_rs::Encoding;
+use hyper::body::Bytes;
 
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
@@ -66,6 +67,11 @@ impl Response {
     pub async fn json<U: serde::de::DeserializeOwned>(self) -> Result<U, crate::Error> {
         let text = self.text().await?;
         serde_json::from_str(&text).map_err(crate::Error::JsonError)
+    }
+
+    pub async fn bytes(mut self) -> Result<Bytes, crate::Error> {
+        let bytes = hyper::body::to_bytes(self.0.body_mut()).await?;
+        Ok(bytes)
     }
 
     pub fn into_parts(self) -> (http::response::Parts, Body) {
