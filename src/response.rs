@@ -25,7 +25,7 @@ pub struct Response(
 
 impl Response {
     pub fn try_clone(&self) -> Result<Response, crate::Error> {
-        let mut builder = hyper::Response::builder()
+        let builder = hyper::Response::builder()
             .version(self.0.version())
             .headers(self.0.headers())
             .status(self.0.status());

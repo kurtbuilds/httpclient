@@ -4,7 +4,6 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use futures::StreamExt;
 use hyper::Body;
 use walkdir::WalkDir;
 use crate::{Request, Response};
@@ -39,7 +38,7 @@ pub fn load_requests(path: &PathBuf) -> impl Iterator<Item=ResponseWithRequest> 
 
 impl RequestRecorder {
     pub fn new() -> Self {
-        let path = PathBuf::from("data/vcr").canonicalize().unwrap();
+        let path = std::env::current_dir().unwrap().join("data").join("vcr");
         println!("Request recorder opened at {}", path.display());
         let requests = load_requests(&path)
             .map(|r| (r.request, r.response))

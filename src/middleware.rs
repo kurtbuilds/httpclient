@@ -31,7 +31,7 @@ impl Next<'_> {
 
 #[async_trait]
 pub trait Middleware: Send + Sync {
-    async fn handle(&self, request: Request, mut next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         next.run(request).await
     }
 }
@@ -95,7 +95,7 @@ impl RecorderMode {
 
 #[async_trait]
 impl Middleware for RecorderMiddleware {
-    async fn handle(&self, request: Request, mut next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let request = request.into_infallible_cloneable().await?;
         if self.should_lookup() {
             let recorded = self.request_recorder.recorded_response(&request);
@@ -118,7 +118,7 @@ pub struct RetryMiddleware {}
 
 #[async_trait]
 impl Middleware for RetryMiddleware {
-    async fn handle(&self, request: Request, mut next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let mut i = 0usize;
         let request = request.into_infallible_cloneable().await?;
         loop {
@@ -145,7 +145,7 @@ impl LoggerMiddleware {
 
 #[async_trait]
 impl Middleware for LoggerMiddleware {
-    async fn handle(&self, request: Request, mut next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let url = request.url().to_string();
         println!("Request: {:?}", request);
         let res = next.run(request).await;
@@ -164,7 +164,7 @@ impl FollowRedirectsMiddleware {
 
 #[async_trait]
 impl Middleware for FollowRedirectsMiddleware {
-    async fn handle(&self, request: Request, mut next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let request = request.into_infallible_cloneable().await?;
         let mut res = next.run(request.try_clone().unwrap()).await?;
         let mut allowed_redirects = 10;

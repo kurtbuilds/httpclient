@@ -45,7 +45,7 @@ impl Client {
         });
         Client {
             base_url,
-            default_headers: vec![],// vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
+            default_headers: vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
             middlewares: Vec::new(),
             inner: hyper::Client::builder().build(https),
         }
@@ -102,7 +102,7 @@ impl Client {
     /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
     /// `execute` is the pub method that additionally runs middlewares.
     pub async fn send(&self, request: Request) -> Result<Response, Error> {
-        Ok(Response::from(self.inner.request((request.into_inner())).await?))
+        Ok(Response::from(self.inner.request(request.into_inner()).await?))
     }
 }
 
