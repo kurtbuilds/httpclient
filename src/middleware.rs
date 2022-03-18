@@ -178,7 +178,6 @@ impl Middleware for FollowRedirectsMiddleware {
             parts.uri = url;
             let request = Request::from_parts(parts, body);
             allowed_redirects -= 1;
-            println!();
             res = next.run(request).await?;
         }
         Ok(res)
