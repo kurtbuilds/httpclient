@@ -3,10 +3,9 @@ use std::borrow::Cow;
 use std::fmt;
 use hyper::{StatusCode};
 use encoding_rs::Encoding;
-use hyper::body::HttpBody;
 
 use crate::body::{Body, NonStreamingBody};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Serialize, Deserialize, Deserializer};
 use serde::ser::SerializeMap;
 
 
