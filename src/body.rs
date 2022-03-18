@@ -1,11 +1,11 @@
-use std::borrow::Cow;
+
 use std::hash::Hasher;
 use std::pin::Pin;
-use std::str::FromStr;
+
 use std::task::{Context, Poll};
 use encoding_rs::Encoding;
 use http::{HeaderMap, HeaderValue};
-use hyper::body::{Buf, Bytes, HttpBody, SizeHint};
+use hyper::body::{Bytes, HttpBody, SizeHint};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
@@ -52,7 +52,7 @@ impl Body {
             Body::Empty => Ok(Body::Empty),
             Body::Bytes(b) => Ok(Body::Bytes(b.clone())),
             Body::Text(s) => Ok(Body::Text(s.clone())),
-            Body::Hyper(b) => Err(crate::Error::Generic(
+            Body::Hyper(_b) => Err(crate::Error::Generic(
                 "hyper::Body cannot be cloned".to_string()
             )),
             Body::Json(v) => Ok(Body::Json(v.clone())),
@@ -134,7 +134,7 @@ impl hyper::body::HttpBody for Body {
         }
     }
 
-    fn poll_trailers(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+    fn poll_trailers(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         Poll::Ready(Ok(None))
     }
 
@@ -144,7 +144,7 @@ impl hyper::body::HttpBody for Body {
             Body::Bytes(b) => b.is_empty(),
             Body::Text(s) => s.is_empty(),
             Body::Hyper(body) => body.is_end_stream(),
-            Body::Json(ref v) => false,
+            Body::Json(ref _v) => false,
         }
     }
 
@@ -176,7 +176,7 @@ impl From<&Body> for NonStreamingBody {
             Body::Empty => NonStreamingBody::Empty,
             Body::Bytes(b) => NonStreamingBody::Bytes(b.clone()),
             Body::Text(s) => NonStreamingBody::String(s.clone()),
-            Body::Hyper(body) => panic!("Hyper body cannot be converted to BodyContent"),
+            Body::Hyper(_body) => panic!("Hyper body cannot be converted to BodyContent"),
             Body::Json(ref v) => NonStreamingBody::Object(v.clone()),
         }
     }
@@ -193,8 +193,8 @@ impl Into<Body> for NonStreamingBody {
                 serde_json::Value::String(s) => Body::Text(s.clone()),
                 Value::Bool(b) => Body::Text(b.to_string()),
                 Value::Number(v) => Body::Text(v.to_string()),
-                Value::Array(a) => Body::Text(v.to_string()),
-                Value::Object(o) => Body::Json(v)
+                Value::Array(_a) => Body::Text(v.to_string()),
+                Value::Object(_o) => Body::Json(v)
             },
             NonStreamingBody::Bytes(b) => Body::Bytes(b),
         }

@@ -1,17 +1,17 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+
 use std::fmt;
 use hyper::{StatusCode};
 use encoding_rs::Encoding;
 use hyper::body::HttpBody;
-use crate::request::Request;
+
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use serde::ser::SerializeMap;
-use std::marker::Unpin;
-use std::str::FromStr;
-use http::status::InvalidStatusCode;
-use serde::de::{Error, MapAccess};
+
+
+
+use serde::de::{MapAccess};
 use crate::headers::{AddHeaders, SortedHeaders};
 
 
@@ -64,9 +64,9 @@ impl Response {
         Ok(text.to_string())
     }
 
-    pub async fn json<U: serde::de::DeserializeOwned>(mut self) -> Result<U, crate::Error> {
+    pub async fn json<U: serde::de::DeserializeOwned>(self) -> Result<U, crate::Error> {
         let text = self.text().await?;
-        serde_json::from_str(&text).map_err(|e| crate::Error::JsonError(e))
+        serde_json::from_str(&text).map_err(crate::Error::JsonError)
     }
 
     pub fn into_parts(self) -> (http::response::Parts, Body) {
@@ -127,7 +127,7 @@ impl<'de> serde::de::Visitor<'de> for ResponseVisitor {
                         return Err(<A::Error as serde::de::Error>::duplicate_field("status"));
                     }
                     let i = map.next_value::<u16>()?;
-                    status = Some(StatusCode::from_u16(i).map_err(|e|
+                    status = Some(StatusCode::from_u16(i).map_err(|_e|
                         <A::Error as serde::de::Error>::custom("Invalid value for field `status`.")
                     )?);
                 }

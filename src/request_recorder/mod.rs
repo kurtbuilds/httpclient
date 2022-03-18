@@ -1,10 +1,10 @@
-use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+
+use std::collections::{HashMap};
 use std::fs;
-use std::fs::OpenOptions;
-use std::io::{Seek, SeekFrom};
+
+
 use std::path::{Path, PathBuf};
-use hyper::Body;
+
 use walkdir::WalkDir;
 use crate::{Request, Response};
 
@@ -65,9 +65,9 @@ impl RequestRecorder {
         let path = self.recording_path(&request);
         println!("Recording response to {}", path.display());
         std::fs::create_dir_all(path.parent().unwrap())?;
-        let mut map = if let Ok(mut f) =fs::File::open(&path) {
+        let mut map = if let Ok(f) =fs::File::open(&path) {
             let res = serde_json::from_reader::<_, Vec<ResponseWithRequest>>(&f).unwrap_or_default();
-            let mut map: HashMap<Request, Response> = HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)));
+            let map: HashMap<Request, Response> = HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)));
             map
         } else {
             HashMap::new()
@@ -75,13 +75,13 @@ impl RequestRecorder {
         let response = response.into_infallible_cloneable().await?;
         println!("Recording response: {:?}", response);
         map.insert(request.try_clone().unwrap(), response.try_clone().unwrap());
-        let mut f = fs::File::create(&path)?;
+        let f = fs::File::create(&path)?;
         let res = map.into_iter().map(|(k, v)| ResponseWithRequest { request: k, response: v }).collect::<Vec<_>>();
-        serde_json::to_writer_pretty(f, &res).map_err(|e| crate::Error::from(e))?;
+        serde_json::to_writer_pretty(f, &res).map_err(crate::Error::from)?;
         Ok(response)
     }
 
-    pub fn load_from_path(path: &Path) {
+    pub fn load_from_path(_path: &Path) {
         unimplemented!()
     }
 

@@ -1,11 +1,11 @@
 use std::str::FromStr;
 use crate::Error;
-use hyper::{Body};
+
 use crate::response::Response;
 use async_trait::async_trait;
 use http::Uri;
 use crate::client::Client;
-use crate::request::{Request, RequestBuilder};
+use crate::request::{Request};
 use crate::request_recorder::RequestRecorder;
 
 
@@ -17,8 +17,8 @@ pub struct Next<'a> {
 
 impl Next<'_> {
     pub async fn run(self, request: Request) -> Result<Response, Error> {
-        if let Some((mut middleware, mut rest)) = self.middlewares.split_first() {
-            let mut next = Next {
+        if let Some((middleware, rest)) = self.middlewares.split_first() {
+            let next = Next {
                 client: self.client,
                 middlewares: rest,
             };
@@ -178,7 +178,7 @@ impl Middleware for FollowRedirectsMiddleware {
             parts.uri = url;
             let request = Request::from_parts(parts, body);
             allowed_redirects -= 1;
-            println!("");
+            println!();
             res = next.run(request).await?;
         }
         Ok(res)

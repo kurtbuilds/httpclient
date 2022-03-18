@@ -1,6 +1,6 @@
-use hyper::{client, server, Client};
-use futures::{Future, TryFutureExt};
-use hyper::server::conn::Http;
+
+
+
 
 // #[derive(Clone, Copy)]
 // struct Proxy;
@@ -28,7 +28,7 @@ use hyper::server::conn::Http;
 // }
 
 
-pub fn run_proxy(port: u16) {
+pub fn run_proxy(_port: u16) {
     // let addr = "127.0.0.1:1337".parse().unwrap();
     //
     // let server = Http::new().bind(&addr, || Ok(Proxy)).unwrap();

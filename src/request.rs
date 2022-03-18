@@ -1,19 +1,19 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::ops::Deref;
+
 use std::str::FromStr;
-use encoding_rs::Encoding;
+
 use http::header::HeaderName;
 use http::request::Parts;
 use http::{HeaderValue, Version};
 use http::uri::PathAndQuery;
-use hyper::{Method, StatusCode, Uri};
+use hyper::{Method, Uri};
 use crate::client::Client;
 use crate::response::Response;
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{EnumAccess, Error, MapAccess, SeqAccess};
+use serde::de::{MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};
@@ -32,11 +32,11 @@ impl Request {
     }
 
     pub fn method(&self) -> &Method {
-        &self.0.method()
+        self.0.method()
     }
 
     pub fn url(&self) -> &Uri {
-        &self.0.uri()
+        self.0.uri()
     }
 
     pub fn host(&self) -> &str {
@@ -56,7 +56,7 @@ impl Request {
     }
 
     pub fn headers(&self) -> &hyper::HeaderMap {
-        &self.0.headers()
+        self.0.headers()
     }
 
     pub fn into_parts(self) -> (http::request::Parts, Body) {
@@ -74,7 +74,7 @@ impl Request {
     }
 
     pub fn try_clone(&self) -> Result<Self, crate::Error> {
-        let mut builder = hyper::Request::builder()
+        let builder = hyper::Request::builder()
             .version(self.version())
             .method(self.method().clone())
             .headers(self.headers())
@@ -138,7 +138,7 @@ fn serialize_request<S>(value: &hyper::Request<Body>, serializer: S) -> Result<S
     where
         S: serde::Serializer,
 {
-    let size = 3 + if value.body().is_empty() { 0 } else { 1 };
+    let _size = 3 + if value.body().is_empty() { 0 } else { 1 };
     let mut map = serializer.serialize_map(Some(4))?;
     map.serialize_entry("method", value.method().as_str())?;
     map.serialize_entry("url", value.uri().to_string().as_str())?;
@@ -180,7 +180,7 @@ impl<'de> serde::de::Visitor<'de> for RequestVisitor {
                         return Err(<A::Error as serde::de::Error>::duplicate_field("method"));
                     }
                     let s = map.next_value::<String>()?;
-                    method = Some(Method::from_str(&s).map_err(|e|
+                    method = Some(Method::from_str(&s).map_err(|_e|
                         <A::Error as serde::de::Error>::custom("Invalid value for field `method`.")
                     )?);
                 }
@@ -189,7 +189,7 @@ impl<'de> serde::de::Visitor<'de> for RequestVisitor {
                         return Err(<A::Error as serde::de::Error>::duplicate_field("url"));
                     }
                     let s = map.next_value::<String>()?;
-                    url = Some(Uri::from_str(&s).map_err(|e|
+                    url = Some(Uri::from_str(&s).map_err(|_e|
                         <A::Error as serde::de::Error>::custom("Invalid value for field `url`.")
                     )?);
                 }
@@ -253,7 +253,7 @@ impl<'a> RequestBuilder<'a> {
     }
 
     pub fn build(self) -> crate::Request {
-        let mut b = hyper::Request::builder()
+        let b = hyper::Request::builder()
             .method(&self.method)
             .uri(&self.uri)
             .version(self.version)

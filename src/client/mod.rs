@@ -2,7 +2,7 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use http::Method;
 use hyper::client::HttpConnector;
-use hyper::{Body, Uri};
+use hyper::{Uri};
 use hyper_rustls::HttpsConnector;
 use crate::request::RequestBuilder;
 use crate::middleware::Middleware;
@@ -80,7 +80,7 @@ impl Client {
     }
 
     pub async fn execute(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
-        let mut next = Next {
+        let next = Next {
             client: self,
             middlewares: self.middlewares.as_slice(),
         };
@@ -110,7 +110,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use crate::body::Body::Json;
+    
     use crate::middleware::{RecorderMiddleware, RecorderMode};
     use super::*;
 
