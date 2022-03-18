@@ -1,9 +1,7 @@
 [package]
-name = "httpmock2"
+name = "httpclient"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.53"
@@ -19,13 +17,3 @@ thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["full"] }
 urlencoding = "2.1.0"
 walkdir = "2.3.2"
-
-#[patch.crates-io]
-#hyper = { path = "../hyper" }
-
-[dev-dependencies]
-criterion = { version = "0.3.5", features = ["async", "async_tokio"] }
-
-[[bench]]
-name = "my_benchmark"
-harness = false
