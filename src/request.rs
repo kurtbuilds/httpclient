@@ -299,7 +299,7 @@ impl<'a> RequestBuilder<'a> {
         let mut parts = std::mem::take(&mut self.uri).into_parts();
         let pq = parts.path_and_query.unwrap();
         let pq = PathAndQuery::from_str(match pq.query() {
-            Some(q) => format!("{}&{}={}", q, urlencoding::encode(k), urlencoding::encode(v)),
+            Some(q) => format!("?{}&{}={}", q, urlencoding::encode(k), urlencoding::encode(v)),
             None => format!("?{}={}", urlencoding::encode(k), urlencoding::encode(v)),
         }.as_str()).unwrap();
         parts.path_and_query = Some(pq);
@@ -345,6 +345,7 @@ impl<'a> RequestBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::Method;
 
     #[test]
     fn test_request_serialization_roundtrip() {
@@ -383,5 +384,15 @@ mod tests {
             .uri("http://example.com/")
             .body(Body::Json(serde_json::to_value(&data).unwrap())).unwrap());
         assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn test_push_query() {
+        let client = Client::new(None);
+        let mut r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/".parse().unwrap());
+        r1 = r1.push_query("a", "b");
+        assert_eq!(r1.uri.clone().query().unwrap(), "a=b");
+        r1 = r1.push_query("c", "d");
+        assert_eq!(r1.uri.clone().query().unwrap(), "a=b&c=d");
     }
 }
