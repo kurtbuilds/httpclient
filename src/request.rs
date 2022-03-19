@@ -299,8 +299,8 @@ impl<'a> RequestBuilder<'a> {
         let mut parts = std::mem::take(&mut self.uri).into_parts();
         let pq = parts.path_and_query.unwrap();
         let pq = PathAndQuery::from_str(match pq.query() {
-            Some(q) => format!("?{}&{}={}", q, urlencoding::encode(k), urlencoding::encode(v)),
-            None => format!("?{}={}", urlencoding::encode(k), urlencoding::encode(v)),
+            Some(q) => format!("{}?{}&{}={}", pq.path(), q, urlencoding::encode(k), urlencoding::encode(v)),
+            None => format!("{}?{}={}", pq.path(), urlencoding::encode(k), urlencoding::encode(v)),
         }.as_str()).unwrap();
         parts.path_and_query = Some(pq);
         self.uri = Uri::from_parts(parts).unwrap();
@@ -389,10 +389,10 @@ mod tests {
     #[test]
     fn test_push_query() {
         let client = Client::new(None);
-        let mut r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/".parse().unwrap());
+        let mut r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap());
         r1 = r1.push_query("a", "b");
-        assert_eq!(r1.uri.clone().query().unwrap(), "a=b");
+        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b");
         r1 = r1.push_query("c", "d");
-        assert_eq!(r1.uri.clone().query().unwrap(), "a=b&c=d");
+        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d");
     }
 }
