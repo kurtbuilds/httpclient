@@ -310,7 +310,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn bytes(mut self, bytes: &[u8]) -> Self {
         self.body = Some(Body::Bytes(bytes.to_vec()));
         self.headers.insert(
-            HeaderName::from_static("content-type"),
+            hyper::header::CONTENT_TYPE,
             HeaderValue::from_static("application/octet-stream")
         );
         self
@@ -319,7 +319,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn text(mut self, text: &str) -> Self {
         self.body = Some(Body::Text(text.to_string()));
         self.headers.insert(
-            HeaderName::from_static("content-type"),
+            hyper::header::CONTENT_TYPE,
             HeaderValue::from_static("text/plain")
         );
         self
@@ -327,7 +327,7 @@ impl<'a> RequestBuilder<'a> {
 
     pub fn content_type(mut self, content_type: &str) -> Self {
         self.headers.insert(
-            HeaderName::from_static("Content-Type"),
+            hyper::header::CONTENT_TYPE,
             HeaderValue::from_str(content_type).unwrap(),
         );
         self
