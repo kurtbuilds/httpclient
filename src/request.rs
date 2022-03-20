@@ -427,7 +427,7 @@ mod tests {
     fn test_query() {
         let client = Client::new(None);
         let r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap())
-            .query(HashMap::from([("a", "b"), ("c", "d")]));
-        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d");
+            .query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
+        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
     }
 }
