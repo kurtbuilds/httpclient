@@ -208,7 +208,7 @@ checksum = "9100414882e15fb7feccb4897e5f0ff0ff1ca7d1a86a23208ada4d7a18e6c6c4"
 
 [[package]]
 name = "httpclient"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "async-trait",
  "encoding_rs",
