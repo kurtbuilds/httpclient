@@ -242,7 +242,8 @@ impl<'a> RequestBuilder<'a> {
         RequestBuilder {
             client,
             version: Default::default(),
-            method, uri,
+            method,
+            uri,
             headers: Default::default(),
             body: Default::default(),
         }
@@ -273,7 +274,7 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(Body::Json(serde_json::to_value(obj).unwrap()));
         self.headers.insert(
             HeaderName::from_static("content-type"),
-            HeaderValue::from_static("application/json")
+            HeaderValue::from_static("application/json"),
         );
         self
     }
@@ -281,8 +282,8 @@ impl<'a> RequestBuilder<'a> {
     pub fn push_json<S: Serialize>(mut self, obj: S) -> Self {
         match self.body {
             None => {
-               self.json(obj)
-            },
+                self.json(obj)
+            }
             Some(Body::Json(serde_json::Value::Object(ref mut body))) => {
                 if let Value::Object(obj) = serde_json::to_value(obj).unwrap() {
                     body.extend(obj.into_iter());
@@ -290,9 +291,33 @@ impl<'a> RequestBuilder<'a> {
                     panic!("Invalid json object");
                 }
                 self
-            },
+            }
             _ => panic!("Invalid json object"),
         }
+    }
+
+    pub fn query<S: Serialize>(mut self, obj: S) -> Self {
+        let query = {
+            let val = serde_json::to_value(obj).unwrap();
+            let map = val.as_object().unwrap();
+            map.into_iter().map(|(k, v)| {
+                let v = match v {
+                    Value::String(s) => Cow::Borrowed(s.as_ref()),
+                    Value::Number(n) => Cow::Owned(n.to_string()),
+                    _ => panic!("Invalid query value"),
+                };
+                let v = urlencoding::encode(&v);
+                urlencoding::encode(k).to_string() + "=" + &v
+            }).collect::<Vec<_>>()
+                .join("&")
+        };
+
+        let mut parts = std::mem::take(&mut self.uri).into_parts();
+        let pq = parts.path_and_query.unwrap();
+        let pq = PathAndQuery::from_str(&format!("{}?{}", pq.path(), query)).unwrap();
+        parts.path_and_query = Some(pq);
+        self.uri = Uri::from_parts(parts).unwrap();
+        self
     }
 
     pub fn push_query(mut self, k: &str, v: &str) -> Self {
@@ -311,7 +336,7 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(Body::Bytes(bytes.to_vec()));
         self.headers.insert(
             hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static("application/octet-stream")
+            HeaderValue::from_static("application/octet-stream"),
         );
         self
     }
@@ -320,7 +345,7 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(Body::Text(text.to_string()));
         self.headers.insert(
             hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static("text/plain")
+            HeaderValue::from_static("text/plain"),
         );
         self
     }
@@ -338,12 +363,12 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(body);
         self
     }
-
 }
 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use super::*;
     use http::Method;
 
@@ -393,6 +418,14 @@ mod tests {
         r1 = r1.push_query("a", "b");
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b");
         r1 = r1.push_query("c", "d");
+        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d");
+    }
+
+    #[test]
+    fn test_query() {
+        let client = Client::new(None);
+        let r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap())
+            .query(HashMap::from([("a", "b"), ("c", "d")]));
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d");
     }
 }
