@@ -304,6 +304,8 @@ impl<'a> RequestBuilder<'a> {
                 let v = match v {
                     Value::String(s) => Cow::Borrowed(s.as_ref()),
                     Value::Number(n) => Cow::Owned(n.to_string()),
+                    Value::Bool(b) => Cow::Owned(b.to_string()),
+                    Value::Null => Cow::Borrowed(""),
                     _ => panic!("Invalid query value"),
                 };
                 let v = urlencoding::encode(&v);
