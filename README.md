@@ -6,6 +6,6 @@
 
 ### Why not `reqwest`?
 
-- `reqwest` objects are not serde-serializable. Having them serializable
+- `reqwest` objects are not serde-serializable. Having them serializable enables record/replay functionality.
 - `reqwest` uses it's own custom types. `httpclient` tries to stay close to the `http` library, where we directly re-use, or have simple newtypes around, `http` structs.
 - `reqwest` does not have middleware. `httpclient` provides powerful middleware for request recording, logging, retry, and other functionality. This functionality is user extensible.
