@@ -4,12 +4,25 @@ use http::Method;
 use hyper::client::HttpConnector;
 use hyper::{Uri};
 use hyper_rustls::HttpsConnector;
+use once_cell::sync::OnceCell;
 use crate::request::RequestBuilder;
 use crate::middleware::Middleware;
 use crate::response::Response;
 use crate::middleware::Next;
 use crate::{Error, Request};
 
+
+static HTTPS_CONNECTOR: OnceCell<HttpsConnector<HttpConnector>> = OnceCell::new();
+
+fn https_connector() -> &'static HttpsConnector<HttpConnector> {
+    HTTPS_CONNECTOR.get_or_init(|| {
+        hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .https_or_http()
+            .enable_http1()
+            .build()
+    })
+}
 
 static APP_USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),
@@ -33,11 +46,7 @@ impl std::fmt::Debug for Client {
 
 impl Client {
     pub fn new(mut base_url: Option<String>) -> Self {
-        let https = hyper_rustls::HttpsConnectorBuilder::new()
-            .with_native_roots()
-            .https_or_http()
-            .enable_http1()
-            .build();
+        let https = https_connector().clone();
         base_url.as_mut().map(|url| {
             if url.ends_with('/') {
                 url.truncate(url.len() - 1);
