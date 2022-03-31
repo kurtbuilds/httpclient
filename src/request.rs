@@ -270,6 +270,14 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    pub fn header(mut self, key: &str, value: &str) -> Self {
+        self.headers.insert(
+            HeaderName::from_str(key).unwrap(),
+            HeaderValue::from_str(value).unwrap()
+        );
+        self
+    }
+
     pub fn bearer_auth(mut self, token: &str) -> Self {
         self.headers.insert(
             hyper::header::AUTHORIZATION,
@@ -277,7 +285,7 @@ impl<'a> RequestBuilder<'a> {
         );
         self
     }
-    
+
     pub fn json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(Body::Json(serde_json::to_value(obj).unwrap()));
         self.headers.insert(
