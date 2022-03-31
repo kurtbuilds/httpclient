@@ -57,6 +57,15 @@ impl Response {
         }
     }
 
+    pub fn error_for_status_ref(&self) -> Result<&Self, &Self> {
+        let status = self.status();
+        if status.is_server_error() || status.is_client_error() {
+            Err(&self)
+        } else {
+            Ok(&self)
+        }
+    }
+
     pub async fn text(mut self) -> Result<String, crate::Error> {
         let bytes = hyper::body::to_bytes(self.0.body_mut()).await?;
         let encoding = Encoding::for_label(&[]).unwrap_or(encoding_rs::UTF_8);
