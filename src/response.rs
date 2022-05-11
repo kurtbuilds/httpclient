@@ -9,11 +9,8 @@ use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
 use serde::ser::SerializeMap;
 
-
-
-use serde::de::{MapAccess};
+use serde::de::{Error, MapAccess};
 use crate::headers::{AddHeaders, SortedHeaders};
-
 
 #[derive(Debug, Serialize)]
 #[serde(transparent)]

@@ -13,7 +13,7 @@ use crate::response::Response;
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{MapAccess};
+use serde::de::{Error, MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};
@@ -106,7 +106,11 @@ impl std::hash::Hash for Request {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.method().hash(state);
         self.url().hash(state);
-        self.headers().iter().for_each(|(k, v)| {
+        let mut sorted = self.headers().iter()
+            .map(|(k, v)| (k.as_str(), v.as_bytes()))
+            .collect::<Vec<(&str, &[u8])>>();
+        sorted.sort();
+        sorted.into_iter().for_each(|(k, v)| {
             k.hash(state);
             v.hash(state);
         });
@@ -386,7 +390,9 @@ impl<'a> RequestBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::hash_map::DefaultHasher;
     use std::collections::HashMap;
+    use std::hash::{Hash, Hasher};
     use super::*;
     use http::Method;
 
@@ -419,14 +425,27 @@ mod tests {
         let r1 = Request(hyper::Request::builder()
             .method(Method::POST)
             .header("content-type", "application/json")
+            .header("user-agent", "httpclient/0.1.0")
             .uri("http://example.com/")
             .body(Body::Json(serde_json::to_value(&data).unwrap())).unwrap());
         let r2 = Request(hyper::Request::builder()
             .method(Method::POST)
+            .header("user-agent", "httpclient/0.1.0")
             .header("content-type", "application/json")
             .uri("http://example.com/")
             .body(Body::Json(serde_json::to_value(&data).unwrap())).unwrap());
         assert_eq!(r1, r2);
+        let h1 = {
+            let mut s = DefaultHasher::new();
+            r1.hash(&mut s);
+            s.finish()
+        };
+        let h2 = {
+            let mut s = DefaultHasher::new();
+            r2.hash(&mut s);
+            s.finish()
+        };
+        assert_eq!(h1, h2);
     }
 
     #[test]

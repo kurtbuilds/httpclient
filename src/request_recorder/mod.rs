@@ -40,7 +40,7 @@ impl RequestRecorder {
     pub fn new() -> Self {
         let path = std::env::current_dir().unwrap().join("data").join("vcr");
         println!("Request recorder opened at {}", path.display());
-        let requests = load_requests(&path)
+        let requests: HashMap<Request, Response> = load_requests(&path)
             .map(|r| (r.request, r.response))
             .collect();
         RequestRecorder {
@@ -50,6 +50,8 @@ impl RequestRecorder {
     }
 
     pub fn recorded_response(&self, request: &Request) -> Option<Response> {
+        println!("Checking for request: {:#?}", request);
+        println!("Have requests: {:#?}", self.requests.keys());
         self.requests.get(request).map(|r| r.try_clone().unwrap())
     }
 
