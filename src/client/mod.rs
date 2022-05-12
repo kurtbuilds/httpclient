@@ -144,7 +144,7 @@ mod tests {
     #[tokio::test]
     async fn test_make_request() {
         let client = Client::new(Some("https://www.jsonip.com".to_string()))
-            .with_middleware(RecorderMiddleware::with_mode(RecorderMode::RecordOrRequest));
+            .with_middleware(RecorderMiddleware::with_mode(RecorderMode::ForceNoRequests));
 
         let res = serde_json::to_value(client.get("/")
             .send()
@@ -153,6 +153,6 @@ mod tests {
             .json::<HashMap<String, String>>()
             .await
             .unwrap()).unwrap();
-        assert_eq!(res, serde_json::json!({"ip":"70.107.72.13","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
+        assert_eq!(res, serde_json::json!({"ip":"70.106.72.13","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
     }
 }
