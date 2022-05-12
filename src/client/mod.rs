@@ -82,6 +82,24 @@ impl Client {
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
     }
 
+    pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
+        let uri = self.build_uri(uri_or_path);
+        RequestBuilder::new(self, Method::DELETE, uri)
+            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    }
+
+    pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
+        let uri = self.build_uri(uri_or_path);
+        RequestBuilder::new(self, Method::PUT, uri)
+            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    }
+
+    pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
+        let uri = self.build_uri(uri_or_path);
+        RequestBuilder::new(self, Method::PATCH, uri)
+            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    }
+
     pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, method, uri)
