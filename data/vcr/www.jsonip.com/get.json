@@ -4,7 +4,7 @@
       "method": "GET",
       "url": "https://www.jsonip.com/",
       "headers": {
-        "user-agent": "httpclient/0.1.14"
+        "user-agent": "test-client"
       }
     },
     "response": {
@@ -15,33 +15,6 @@
         "connection": "keep-alive",
         "content-type": "application/json; charset=utf-8",
         "date": "Thu, 12 May 2022 15:36:56 GMT",
-        "server": "nginx/1.20.2",
-        "strict-transport-security": "max-age=31536000;",
-        "transfer-encoding": "chunked"
-      },
-      "data": {
-        "API Help": "https://getjsonip.com/#docs",
-        "geo-ip": "https://getjsonip.com/#plus",
-        "ip": "70.106.72.13"
-      }
-    }
-  },
-  {
-    "request": {
-      "method": "GET",
-      "url": "https://www.jsonip.com/",
-      "headers": {
-        "user-agent": "httpclient/0.1.12"
-      }
-    },
-    "response": {
-      "status": 200,
-      "headers": {
-        "access-control-allow-methods": "GET",
-        "access-control-allow-origin": "*",
-        "connection": "keep-alive",
-        "content-type": "application/json; charset=utf-8",
-        "date": "Wed, 11 May 2022 18:31:28 GMT",
         "server": "nginx/1.20.2",
         "strict-transport-security": "max-age=31536000;",
         "transfer-encoding": "chunked"

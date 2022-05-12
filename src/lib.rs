@@ -10,7 +10,6 @@ pub use response::Response;
 pub use crate::client::Client;
 pub use crate::error::Error;
 
-pub mod proxy_server;
 mod client;
 mod error;
 pub mod request_recorder;

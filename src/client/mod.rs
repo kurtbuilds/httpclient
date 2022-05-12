@@ -116,6 +116,11 @@ impl Client {
         next.run(request).await
     }
 
+    pub fn no_default_headers(mut self) -> Self {
+        self.default_headers = Vec::new();
+        self
+    }
+
     pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
         self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
         self
@@ -144,6 +149,8 @@ mod tests {
     #[tokio::test]
     async fn test_make_request() {
         let client = Client::new(Some("https://www.jsonip.com".to_string()))
+            .no_default_headers()
+            .default_headers(vec![("User-Agent", "test-client")].into_iter())
             .with_middleware(RecorderMiddleware::with_mode(RecorderMode::ForceNoRequests));
 
         let res = serde_json::to_value(client.get("/")
