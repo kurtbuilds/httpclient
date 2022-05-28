@@ -35,3 +35,4 @@
 # Roadmap
 
 - [ ] Hide secrets in Recorder. Hash & Eq checks for requests must respect hidden values.
+- [ ] Ensure it builds on wasm32-unknown-unknown
