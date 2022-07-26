@@ -133,7 +133,7 @@ impl Client {
 
     /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
     /// `execute` is the pub method that additionally runs middlewares.
-    pub async fn send(&self, request: Request) -> Result<Response, Error> {
+    pub(crate) async fn send(&self, request: Request) -> Result<Response, Error> {
         Ok(Response::from(self.inner.request(request.into_inner()).await?))
     }
 }
