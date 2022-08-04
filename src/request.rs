@@ -59,6 +59,10 @@ impl Request {
         self.0.headers()
     }
 
+    pub fn headers_mut(&mut self) -> &hyper::HeaderMap {
+        self.0.headers_mut()
+    }
+    
     pub fn into_parts(self) -> (http::request::Parts, Body) {
         self.0.into_parts()
     }
