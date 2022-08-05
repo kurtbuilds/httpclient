@@ -286,6 +286,14 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    pub fn push_cookie(mut self, key: &str, value: &str) -> Self {
+        self.headers.insert(
+            hyper::header::SET_COOKIE,
+            HeaderValue::from_str(&format!("{}={}", key, value)).unwrap()
+        );
+        self
+    }
+
     pub fn bearer_auth(mut self, token: &str) -> Self {
         self.headers.insert(
             hyper::header::AUTHORIZATION,
