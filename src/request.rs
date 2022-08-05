@@ -62,7 +62,7 @@ impl Request {
     pub fn headers_mut(&mut self) -> &hyper::HeaderMap {
         self.0.headers_mut()
     }
-    
+
     pub fn into_parts(self) -> (http::request::Parts, Body) {
         self.0.into_parts()
     }
@@ -328,6 +328,7 @@ impl<'a> RequestBuilder<'a> {
         }
     }
 
+    /// Destructively sets the query. If any query params are already set, they will be overwritten.
     pub fn query<S: Serialize>(mut self, obj: S) -> Self {
         let query = {
             let val = serde_json::to_value(obj).unwrap();
@@ -354,6 +355,19 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    pub fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    /// Add a url query parameter, but keep existing parameters.
+    /// # Examples
+    /// ```
+    /// use httpclient::{Client, RequestBuilder, Method};
+    /// let client = Client::new(None);
+    /// let mut r = RequestBuilder::new(&client, Method::GET, "http://example.com/foo?a=1".parse().unwrap());
+    /// r = r.push_query("b", "2");
+    /// assert_eq!(r.uri().to_string(), "http://example.com/foo?a=1&b=2");
+    /// ```
     pub fn push_query(mut self, k: &str, v: &str) -> Self {
         let mut parts = std::mem::take(&mut self.uri).into_parts();
         let pq = parts.path_and_query.unwrap();
@@ -366,6 +380,7 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
     pub fn bytes(mut self, bytes: &[u8]) -> Self {
         self.body = Some(Body::Bytes(bytes.to_vec()));
         self.headers.insert(
@@ -375,6 +390,7 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    /// Sets content-type to `text/plain` and the body to the supplied text.
     pub fn text(mut self, text: &str) -> Self {
         self.body = Some(Body::Text(text.to_string()));
         self.headers.insert(
@@ -397,6 +413,7 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(body);
         self
     }
+
 }
 
 
