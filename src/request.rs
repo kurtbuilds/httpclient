@@ -310,6 +310,13 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
+    pub fn basic_auth(mut self, token: &str) -> Self {
+        self.headers.insert(
+            hyper::header::AUTHORIZATION,
+            hyper::header::HeaderValue::from_str(&format!("Basic {}", token)).unwrap()
+        );
+        self
+    }
     pub fn json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(Body::Json(serde_json::to_value(obj).unwrap()));
         self.headers.insert(
