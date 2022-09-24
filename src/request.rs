@@ -13,7 +13,7 @@ use crate::response::Response;
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{Error, MapAccess};
+use serde::de::{MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};
@@ -321,7 +321,7 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(Body::Json(serde_json::to_value(obj).unwrap()));
         self.headers.insert(
             HeaderName::from_static("content-type"),
-            HeaderValue::from_static("application/json"),
+            HeaderValue::from_static("application/json; charset=utf-8"),
         );
         self
     }
