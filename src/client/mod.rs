@@ -47,11 +47,6 @@ impl std::fmt::Debug for Client {
 impl Client {
     pub fn new(mut base_url: Option<String>) -> Self {
         let https = https_connector().clone();
-        base_url.as_mut().map(|url| {
-            if url.ends_with('/') {
-                url.truncate(url.len() - 1);
-            }
-        });
         Client {
             base_url,
             default_headers: vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
