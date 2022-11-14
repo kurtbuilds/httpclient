@@ -13,7 +13,7 @@ use crate::response::Response;
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{MapAccess};
+use serde::de::{Error, MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};
@@ -288,7 +288,7 @@ impl<'a> RequestBuilder<'a> {
 
     pub fn push_cookie(mut self, key: &str, value: &str) -> Self {
         self.headers.insert(
-            hyper::header::SET_COOKIE,
+            hyper::header::COOKIE,
             HeaderValue::from_str(&format!("{}={}", key, value)).unwrap()
         );
         self
