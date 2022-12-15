@@ -13,7 +13,7 @@ use crate::response::Response;
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{Error, MapAccess};
+use serde::de::{MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};

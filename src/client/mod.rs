@@ -45,7 +45,7 @@ impl std::fmt::Debug for Client {
 
 
 impl Client {
-    pub fn new(mut base_url: Option<String>) -> Self {
+    pub fn new(base_url: Option<String>) -> Self {
         let https = https_connector().clone();
         Client {
             base_url,

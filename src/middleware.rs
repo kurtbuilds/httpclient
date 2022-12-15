@@ -162,6 +162,18 @@ impl FollowRedirectsMiddleware {
     }
 }
 
+fn fix_url(redirect_url: &str, original: &Uri) -> Uri {
+    let url = Uri::from_str(redirect_url).unwrap();
+    let mut parts = url.into_parts();
+    if parts.authority.is_none() {
+        parts.authority = original.authority().cloned();
+    }
+    if parts.scheme.is_none() {
+        parts.scheme = original.scheme().cloned();
+    }
+    Uri::from_parts(parts).unwrap()
+}
+
 #[async_trait]
 impl Middleware for FollowRedirectsMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
@@ -173,7 +185,7 @@ impl Middleware for FollowRedirectsMiddleware {
                 return Err(Error::Generic("Too many redirects".to_string()));
             }
             let url = res.headers().get(http::header::LOCATION).unwrap().to_str().unwrap();
-            let url = Uri::from_str(url).unwrap();
+            let url = fix_url(url, request.url());
             let (mut parts, body) = request.try_clone().unwrap().into_parts();
             parts.uri = url;
             let request = Request::from_parts(parts, body);
@@ -181,5 +193,18 @@ impl Middleware for FollowRedirectsMiddleware {
             res = next.run(request).await?;
         }
         Ok(res)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relative_route() {
+        let original = Uri::from_str("https://www.google.com/").unwrap();
+        let url = fix_url("/test", &original);
+        assert_eq!(url.to_string(), "https://www.google.com/test");
     }
 }
