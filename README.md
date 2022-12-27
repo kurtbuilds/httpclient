@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/github/stars/kurtbuilds/httpclient.svg?style=flat-square" alt="Stars" />
 </a>
 <a href="https://github.com/kurtbuilds/httpclient/actions">
-    <img src="https://img.shields.io/github/workflow/status/kurtbuilds/httpclient/test?style=flat-square" alt="Build Status" />
+    <img src="https://img.shields.io/github/actions/workflow/status/kurtbuilds/httpclient/test.yaml?style=flat-square" alt="Build Status" />
 </a>
 <a href="https://crates.io/crates/httpclient">
     <img src="https://img.shields.io/crates/d/httpclient?style=flat-square" alt="Downloads" />
