@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use std::fmt;
 use hyper::{StatusCode};
 use encoding_rs::Encoding;
-use http::HeaderValue;
 use hyper::body::Bytes;
 
 use crate::body::{Body, NonStreamingBody};
@@ -42,7 +41,7 @@ impl Response {
         self.0.headers().get("cookie")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| {
-                let mut cookies = basic_cookies::Cookie::parse(v).ok()?;
+                let cookies = basic_cookies::Cookie::parse(v).ok()?;
                 cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
             })
     }
@@ -201,7 +200,7 @@ impl<T> ResponseWithBody<T> {
         self.headers.get("cookie")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| {
-                let mut cookies = basic_cookies::Cookie::parse(v).ok()?;
+                let cookies = basic_cookies::Cookie::parse(v).ok()?;
                 cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
             })
     }

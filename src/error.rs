@@ -1,6 +1,5 @@
 use std::fmt::{Display};
 use std::string::FromUtf8Error;
-use crate::Response;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
