@@ -430,44 +430,8 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(body);
         self
     }
-}
 
-pub trait SendFull<'a, T> {
-    fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<T>, crate::Error>>;
-}
-
-// impl<'a> SendFull<'a, String> for RequestBuilder<'a> {
-//     fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<String>, crate::Error>> {
-//         Box::pin(async move {
-//             let res = self.send().await?;
-//             let (parts, body) = res.into_parts();
-//             let Body::Hyper(hyper_body) = body else {
-//                 return Err(crate::Error::Generic("Invalid body".to_string()));
-//             };
-//             let bytes = hyper::body::to_bytes(hyper_body).await?;
-//             let body = String::from_utf8(bytes.to_vec())?;
-//             if parts.status.is_client_error() || parts.status.is_server_error() {
-//                 Err(crate::Error::ApplicationErrorText {
-//                     status: parts.status,
-//                     headers: parts.headers,
-//                     body,
-//                 })
-//             } else {
-//                 Ok(ResponseWithBody {
-//                     data: body,
-//                     headers: parts.headers,
-//                     status: parts.status,
-//                 })
-//             }
-//         })
-//     }
-// }
-
-impl<'a, T> SendFull<'a, T> for RequestBuilder<'a>
-    where
-        T: DeserializeOwned + 'a,
-{
-    fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<T>, crate::Error>> {
+    pub fn send_full<T: DeserializeOwned>(self) -> BoxFuture<'a, Result<ResponseWithBody<T>, crate::Error>> {
         Box::pin(async move {
             let res = self.send().await?;
             let (parts, body) = res.into_parts();

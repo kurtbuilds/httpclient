@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::fmt;
 use hyper::{StatusCode};
 use encoding_rs::Encoding;
+use http::HeaderValue;
 use hyper::body::Bytes;
 
 use crate::body::{Body, NonStreamingBody};
@@ -35,6 +36,15 @@ impl Response {
 
     pub fn headers(&self) -> &hyper::HeaderMap {
         self.0.headers()
+    }
+
+    pub fn cookie(&self, name: &str) -> Option<&str> {
+        self.0.headers().get("cookie")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| {
+                let mut cookies = basic_cookies::Cookie::parse(v).ok()?;
+                cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
+            })
     }
 
     pub fn body(&self) -> &Body {
@@ -84,7 +94,7 @@ impl Response {
         self.0.into_parts()
     }
 
-    pub fn from_parts(parts: http::response::Parts, body: Body) -> Self{
+    pub fn from_parts(parts: http::response::Parts, body: Body) -> Self {
         Response(hyper::Response::from_parts(parts, body))
     }
 
@@ -147,7 +157,7 @@ impl<'de> serde::de::Visitor<'de> for ResponseVisitor {
                         return Err(<A::Error as serde::de::Error>::duplicate_field("headers"));
                     }
                     headers = Some(map.next_value::<SortedHeaders>()?);
-                },
+                }
                 "data" => {
                     if data.is_some() {
                         return Err(<A::Error as serde::de::Error>::duplicate_field("body"));
@@ -184,4 +194,15 @@ pub struct ResponseWithBody<T> {
     pub data: T,
     pub headers: hyper::HeaderMap,
     pub status: StatusCode,
+}
+
+impl<T> ResponseWithBody<T> {
+    pub fn cookie(&self, name: &str) -> Option<&str> {
+        self.headers.get("cookie")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| {
+                let mut cookies = basic_cookies::Cookie::parse(v).ok()?;
+                cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
+            })
+    }
 }
