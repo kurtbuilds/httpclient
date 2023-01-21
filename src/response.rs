@@ -110,7 +110,7 @@ fn serialize_response<S>(value: &hyper::Response<Body>, serializer: S) -> Result
     where
         S: serde::Serializer,
 {
-    let mut map = serializer.serialize_map(Some(1))?;
+    let mut map = serializer.serialize_map(Some(3))?;
     map.serialize_entry("status", &value.status().as_u16())?;
     map.serialize_entry("headers", &SortedHeaders::from(value.headers()))?;
     map.serialize_entry("data", &NonStreamingBody::from(value.body()))?;
@@ -171,7 +171,6 @@ impl<'de> serde::de::Visitor<'de> for ResponseVisitor {
     }
 }
 
-
 impl<'de> Deserialize<'de> for Response {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
@@ -179,4 +178,10 @@ impl<'de> Deserialize<'de> for Response {
     {
         deserializer.deserialize_map(ResponseVisitor)
     }
+}
+
+pub struct ResponseWithBody<T> {
+    pub data: T,
+    pub headers: hyper::HeaderMap,
+    pub status: StatusCode,
 }

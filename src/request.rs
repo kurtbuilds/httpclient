@@ -11,11 +11,11 @@ use http::{HeaderValue, Version};
 use http::uri::PathAndQuery;
 use hyper::{Method, Uri};
 use crate::client::Client;
-use crate::response::Response;
+use crate::response::{Response, ResponseWithBody};
 use crate::error;
 use crate::body::{Body, NonStreamingBody};
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{MapAccess};
+use serde::de::{DeserializeOwned, MapAccess};
 use serde::ser::SerializeMap;
 use serde_json::Value;
 use crate::headers::{AddHeaders, SortedHeaders};
@@ -263,7 +263,7 @@ impl<'a> RequestBuilder<'a> {
         self.client.execute(self).await
     }
 
-    pub fn build(self) -> crate::Request {
+    pub fn build(self) -> Request {
         let b = hyper::Request::builder()
             .method(&self.method)
             .uri(&self.uri)
@@ -283,7 +283,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn header(mut self, key: &str, value: &str) -> Self {
         self.headers.insert(
             HeaderName::from_str(key).unwrap(),
-            HeaderValue::from_str(value).unwrap()
+            HeaderValue::from_str(value).unwrap(),
         );
         self
     }
@@ -291,7 +291,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn push_cookie(mut self, key: &str, value: &str) -> Self {
         self.headers.insert(
             hyper::header::COOKIE,
-            HeaderValue::from_str(&format!("{}={}", key, value)).unwrap()
+            HeaderValue::from_str(&format!("{}={}", key, value)).unwrap(),
         );
         self
     }
@@ -299,7 +299,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn bearer_auth(mut self, token: &str) -> Self {
         self.headers.insert(
             hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap()
+            hyper::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
         );
         self
     }
@@ -307,7 +307,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn token_auth(mut self, token: &str) -> Self {
         self.headers.insert(
             hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Token {}", token)).unwrap()
+            hyper::header::HeaderValue::from_str(&format!("Token {}", token)).unwrap(),
         );
         self
     }
@@ -315,7 +315,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn basic_auth(mut self, token: &str) -> Self {
         self.headers.insert(
             hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Basic {}", token)).unwrap()
+            hyper::header::HeaderValue::from_str(&format!("Basic {}", token)).unwrap(),
         );
         self
     }
@@ -430,7 +430,79 @@ impl<'a> RequestBuilder<'a> {
         self.body = Some(body);
         self
     }
+}
 
+pub trait SendFull<'a, T> {
+    fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<T>, crate::Error>>;
+}
+
+// impl<'a> SendFull<'a, String> for RequestBuilder<'a> {
+//     fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<String>, crate::Error>> {
+//         Box::pin(async move {
+//             let res = self.send().await?;
+//             let (parts, body) = res.into_parts();
+//             let Body::Hyper(hyper_body) = body else {
+//                 return Err(crate::Error::Generic("Invalid body".to_string()));
+//             };
+//             let bytes = hyper::body::to_bytes(hyper_body).await?;
+//             let body = String::from_utf8(bytes.to_vec())?;
+//             if parts.status.is_client_error() || parts.status.is_server_error() {
+//                 Err(crate::Error::ApplicationErrorText {
+//                     status: parts.status,
+//                     headers: parts.headers,
+//                     body,
+//                 })
+//             } else {
+//                 Ok(ResponseWithBody {
+//                     data: body,
+//                     headers: parts.headers,
+//                     status: parts.status,
+//                 })
+//             }
+//         })
+//     }
+// }
+
+impl<'a, T> SendFull<'a, T> for RequestBuilder<'a>
+    where
+        T: DeserializeOwned + 'a,
+{
+    fn send_full(self) -> BoxFuture<'a, Result<ResponseWithBody<T>, crate::Error>> {
+        Box::pin(async move {
+            let res = self.send().await?;
+            let (parts, body) = res.into_parts();
+            let Body::Hyper(hyper_body) = body else {
+                return Err(crate::Error::Generic("Invalid body".to_string()));
+            };
+            let bytes = hyper::body::to_bytes(hyper_body).await?;
+            if parts.status.is_client_error() || parts.status.is_server_error() {
+                match serde_json::from_slice(&bytes) {
+                    Ok(v) => {
+                        Err(crate::Error::ApplicationErrorJson {
+                            status: parts.status,
+                            headers: parts.headers,
+                            body: v,
+                        })
+                    },
+                    Err(_) => {
+                        let body = String::from_utf8(bytes.to_vec())?;
+                        Err(crate::Error::ApplicationErrorText {
+                            status: parts.status,
+                            headers: parts.headers,
+                            body,
+                        })
+                    }
+                }
+            } else {
+                let body = T::deserialize(&mut serde_json::Deserializer::from_slice(&bytes))?;
+                Ok(ResponseWithBody {
+                    data: body,
+                    headers: parts.headers,
+                    status: parts.status,
+                })
+            }
+        })
+    }
 }
 
 impl<'a> IntoFuture for RequestBuilder<'a> {

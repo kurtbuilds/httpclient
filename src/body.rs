@@ -16,7 +16,7 @@ pub enum Body {
     Bytes(Vec<u8>),
     Text(String),
     Hyper(hyper::Body),
-    Json(serde_json::Value),
+    Json(Value),
 }
 
 
@@ -40,7 +40,7 @@ impl Body {
                 let (text, _, _) = encoding.decode(&bytes);
                 let content_type = content_type.map(|ct| ct.to_str().unwrap().split(';').next().unwrap());
                 match content_type {
-                    Some("application/json") => Ok(Body::Json(serde_json::from_str::<serde_json::Value>(text.as_ref())?)),
+                    Some("application/json") => Ok(Body::Json(serde_json::from_str::<Value>(text.as_ref())?)),
                     _ => Ok(Body::Text(text.to_string())),
                 }
             }
@@ -164,7 +164,7 @@ impl hyper::body::HttpBody for Body {
 #[serde(untagged)]
 pub enum NonStreamingBody {
     Empty,
-    Object(serde_json::Value),
+    Object(Value),
     String(String),
     Bytes(Vec<u8>),
 }
@@ -189,8 +189,8 @@ impl Into<Body> for NonStreamingBody {
             NonStreamingBody::Empty => Body::Empty,
             NonStreamingBody::String(s) => Body::Text(s),
             NonStreamingBody::Object(v) => match &v {
-                serde_json::Value::Null => Body::Text("null".to_string()),
-                serde_json::Value::String(s) => Body::Text(s.clone()),
+                Value::Null => Body::Text("null".to_string()),
+                Value::String(s) => Body::Text(s.clone()),
                 Value::Bool(b) => Body::Text(b.to_string()),
                 Value::Number(v) => Body::Text(v.to_string()),
                 Value::Array(_a) => Body::Text(v.to_string()),
