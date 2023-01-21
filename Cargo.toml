@@ -11,7 +11,7 @@ documentation = "https://docs.rs/httpclient/"
 [dependencies]
 async-trait = "0.1.52"
 encoding_rs = "0.8.30"
-futures = "0.3.21"
+futures = "0.3.25"
 http = "0.2.6"
 hyper = { version = "0.14.17", features = ["server"] }
 hyper-rustls = "0.23.0"

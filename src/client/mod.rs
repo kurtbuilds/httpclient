@@ -45,14 +45,20 @@ impl std::fmt::Debug for Client {
 
 
 impl Client {
-    pub fn new(base_url: Option<String>) -> Self {
+    pub fn new() -> Self {
         let https = https_connector().clone();
         Client {
-            base_url,
+            base_url: None,
             default_headers: vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
             middlewares: Vec::new(),
             inner: hyper::Client::builder().build(https),
         }
+    }
+
+    /// Set a `base_url` so you can pass relative paths instead of full URLs.
+    pub fn base_url(mut self, base_url: &str) -> Self {
+        self.base_url = Some(base_url.to_string());
+        self
     }
 
     pub fn with_middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
@@ -143,7 +149,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_make_request() {
-        let client = Client::new(Some("https://www.jsonip.com".to_string()))
+        let client = Client::new()
+            .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
             .with_middleware(RecorderMiddleware::with_mode(RecorderMode::ForceNoRequests));

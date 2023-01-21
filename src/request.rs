@@ -1,5 +1,7 @@
+use futures::future::BoxFuture;
 use std::borrow::Cow;
 use std::fmt;
+use std::future::IntoFuture;
 
 use std::str::FromStr;
 
@@ -378,7 +380,7 @@ impl<'a> RequestBuilder<'a> {
     /// # Examples
     /// ```
     /// use httpclient::{Client, RequestBuilder, Method};
-    /// let client = Client::new(None);
+    /// let client = Client::new();
     /// let mut r = RequestBuilder::new(&client, Method::GET, "http://example.com/foo?a=1".parse().unwrap());
     /// r = r.push_query("b", "2");
     /// assert_eq!(r.uri().to_string(), "http://example.com/foo?a=1&b=2");
@@ -431,6 +433,14 @@ impl<'a> RequestBuilder<'a> {
 
 }
 
+impl<'a> IntoFuture for RequestBuilder<'a> {
+    type Output = Result<Response, crate::Error>;
+    type IntoFuture = BoxFuture<'a, Self::Output>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(self.client.execute(self))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -494,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_push_query() {
-        let client = Client::new(None);
+        let client = Client::new();
         let mut r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap());
         r1 = r1.push_query("a", "b");
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b");
@@ -504,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let client = Client::new(None);
+        let client = Client::new();
         let r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap())
             .query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
