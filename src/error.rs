@@ -1,5 +1,5 @@
 use std::error::Error as StdError;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 use http::StatusCode;
 use crate::{Body, InMemoryResponse};
@@ -29,7 +29,6 @@ impl Display for ProtocolError {
     }
 }
 
-#[derive(Debug)]
 pub enum Error<T = Body> {
     Custom(String),
     TooManyRedirectsError,
@@ -89,9 +88,23 @@ impl From<InMemoryError> for Error {
     }
 }
 
-impl StdError for Error {}
+impl<T: Debug> Debug for Error<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Custom(msg) => write!(f, "Custom: {}", msg),
+            Error::HttpProtocolError(e) => write!(f, "HttpProtocolError: {}", e),
+            Error::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
+            Error::JsonEncodingError(e) => write!(f, "JsonEncodingError: {}", e),
+            Error::IoError(e) => write!(f, "IoError: {}", e),
+            Error::HttpError(r) => {
+                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
+            }
+            Error::TooManyRedirectsError => write!(f, "TooManyRedirectsError"),
+        }
+    }
+}
 
-impl Display for Error {
+impl<T: Debug> Display for Error<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Custom(msg) => write!(f, "{}", msg),
@@ -106,6 +119,8 @@ impl Display for Error {
         }
     }
 }
+
+impl<T: Debug> StdError for Error<T> {}
 
 impl serde::de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
