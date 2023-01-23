@@ -140,6 +140,8 @@ mod tests {
     use std::hash::{Hash, Hasher};
 
     use serde_json::json;
+    use serde::{Serialize, Deserialize};
+    use crate::Client;
 
     use super::*;
 

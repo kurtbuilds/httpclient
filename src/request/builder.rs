@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use http::uri::PathAndQuery;
 use futures::future::BoxFuture;
 use std::future::IntoFuture;
-use futures::SinkExt;
 use std::str::FromStr;
 use crate::{Body, Client, InMemoryBody, Request, Response, InMemoryResponse};
 use crate::middleware::Next;

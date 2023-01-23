@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use serde::de::{Error, MapAccess};
+use serde::de::Error;
 use http::{HeaderMap, HeaderValue, Method, Uri, Version};
 use std::str::FromStr;
 use http::header::HeaderName;
