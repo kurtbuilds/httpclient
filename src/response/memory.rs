@@ -56,7 +56,6 @@ impl Serialize for InMemoryResponse {
 
 impl<'de> Deserialize<'de> for InMemoryResponse {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> where {
-
         struct InMemoryResponseVisitor;
 
         impl<'de> serde::de::Visitor<'de> for InMemoryResponseVisitor {
@@ -122,5 +121,22 @@ impl Clone for InMemoryResponse {
             parts: self.parts.clone(),
             body: self.body.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use super::*;
+
+    #[test]
+    fn test_serialize() {
+        let mut response = InMemoryResponse::new(StatusCode::OK, HeaderMap::new(), InMemoryBody::new_json(json!({
+            "Password": "hunter2",
+            "email": "amazing",
+        })));
+        response.sanitize();
+        let serialized = serde_json::to_string(&response).unwrap();
+        assert_eq!(serialized, r#"{"status":200,"headers":{},"body":{"Password":"**********","email":"amazing"}}"#);
     }
 }
