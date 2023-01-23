@@ -234,7 +234,7 @@ checksum = "d897f394bad6a705d5f4104762e116a75639e470d80901eed05a860a95cb1904"
 
 [[package]]
 name = "httpclient"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "async-trait",
  "cookie",
