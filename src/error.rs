@@ -31,13 +31,19 @@ impl Display for ProtocolError {
 
 #[derive(Debug)]
 pub enum Error<T = Body> {
-    Generic(String),
+    Custom(String),
     TooManyRedirectsError,
     HttpProtocolError(hyper::Error),
     Utf8Error(FromUtf8Error),
     JsonEncodingError(serde_json::Error),
     IoError(std::io::Error),
     HttpError(crate::Response<T>),
+}
+
+impl<T> Error<T> {
+    pub fn custom(msg: &str) -> Self {
+        Error::Custom(msg.to_string())
+    }
 }
 
 impl Error {
@@ -59,7 +65,7 @@ impl Error {
                 };
                 Error::HttpError(InMemoryResponse::from_parts(parts, body))
             }
-            Error::Generic(e) => Error::Generic(e),
+            Error::Custom(e) => Error::Custom(e),
             Error::TooManyRedirectsError => Error::TooManyRedirectsError,
             Error::HttpProtocolError(h) => Error::HttpProtocolError(h),
             Error::Utf8Error(u) => Error::Utf8Error(u),
@@ -73,7 +79,7 @@ impl From<InMemoryError> for Error {
     fn from(value: InMemoryError) -> Self {
         match value {
             Error::HttpError(r) => Error::HttpError(r.into()),
-            Error::Generic(e) => Error::Generic(e),
+            Error::Custom(e) => Error::Custom(e),
             Error::TooManyRedirectsError => Error::TooManyRedirectsError,
             Error::HttpProtocolError(h) => Error::HttpProtocolError(h),
             Error::Utf8Error(u) => Error::Utf8Error(u),
@@ -88,7 +94,7 @@ impl StdError for Error {}
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Generic(msg) => write!(f, "{}", msg),
+            Error::Custom(msg) => write!(f, "{}", msg),
             Error::HttpProtocolError(e) => write!(f, "HttpProtocolError: {}", e),
             Error::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
             Error::JsonEncodingError(e) => write!(f, "JsonEncodingError: {}", e),
@@ -103,7 +109,7 @@ impl Display for Error {
 
 impl serde::de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
-        Error::Generic(msg.to_string())
+        Error::Custom(msg.to_string())
     }
 }
 

@@ -568,7 +568,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
             uri: self.uri,
             version: self.version,
             headers: self.headers,
-            body: self.body.ok_or_else(|| crate::Error::<Body>::Generic("No body set".to_string()))?,
+            body: self.body.ok_or_else(|| crate::Error::<Body>::Custom("No body set".to_string()))?,
         })
     }
 }

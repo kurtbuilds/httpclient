@@ -114,7 +114,7 @@ impl Middleware for RecorderMiddleware {
             }
         }
         if !self.should_request() {
-            return Err(Error::Generic("No recording found".to_string()));
+            return Err(Error::Custom("No recording found".to_string()));
         }
         let response = next.run(request.clone().into()).await?;
         let response = response.into_content().await?;
