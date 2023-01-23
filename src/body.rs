@@ -1,4 +1,4 @@
-use std::f32::consts::E;
+
 use std::hash::Hasher;
 use std::pin::Pin;
 
@@ -9,7 +9,7 @@ use hyper::body::{Bytes, HttpBody, SizeHint};
 use serde::{Serialize, Deserialize};
 use serde::de::{DeserializeOwned, Error};
 use serde_json::Value;
-use crate::{Request, Result};
+use crate::{Result};
 use crate::error::ProtocolError;
 
 
@@ -165,9 +165,9 @@ impl Body {
     }
 }
 
-impl Into<hyper::Body> for Body {
-    fn into(self) -> hyper::Body {
-        match self {
+impl From<Body> for hyper::Body {
+    fn from(val: Body) -> Self {
+        match val {
             Body::Hyper(body) => body,
             Body::InMemory(InMemoryBody::Empty) => hyper::Body::empty(),
             Body::InMemory(InMemoryBody::Text(s)) => hyper::Body::from(s),

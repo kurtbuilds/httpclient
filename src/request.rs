@@ -225,14 +225,14 @@ impl PartialEq<Self> for Request<InMemoryBody> {
 impl Eq for InMemoryRequest {}
 
 
-impl Into<Request> for InMemoryRequest {
-    fn into(self) -> Request {
+impl From<InMemoryRequest> for Request {
+    fn from(val: InMemoryRequest) -> Self {
         Request {
-            method: self.method,
-            url: self.url,
-            version: self.version,
-            headers: self.headers,
-            body: self.body.into(),
+            method: val.method,
+            url: val.url,
+            version: val.version,
+            headers: val.headers,
+            body: val.body.into(),
         }
     }
 }

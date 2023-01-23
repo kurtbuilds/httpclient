@@ -1,22 +1,19 @@
 use std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
-use http::{HeaderMap, Method, StatusCode, Uri};
+use http::{HeaderMap};
 use http::header::HeaderName;
 
 
+/// Only used for de/serialization. http::HeaderMap has a number of optimizations, so we want
+/// to use it at runtime, but serialization needs to be in-order.
 #[derive(Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub struct SortedSerializableHeaders(BTreeMap<String, String>);
+pub(crate) struct SortedSerializableHeaders(BTreeMap<String, String>);
 
-impl SortedSerializableHeaders {
-    fn iter(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.0.iter()
-    }
-}
 
 impl From<&HeaderMap> for SortedSerializableHeaders {
-    fn from(headers: &http::header::HeaderMap) -> Self {
+    fn from(headers: &HeaderMap) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in headers.iter() {
             map.insert(key.to_string(), value.to_str().unwrap().to_string());

@@ -22,7 +22,7 @@ pub struct RequestRecorder {
 
 
 pub fn load_requests(path: &PathBuf) -> impl Iterator<Item=RequestResponsePair> {
-    WalkDir::new(&path)
+    WalkDir::new(path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file() && e.file_name().to_str().unwrap().ends_with(".json"))
@@ -47,7 +47,7 @@ impl RequestRecorder {
     }
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
-        self.requests.get(request).map(|r| r.clone().into())
+        self.requests.get(request).cloned()
     }
 
     fn filepath_for_request(&self, request: &InMemoryRequest) -> PathBuf {
