@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use http::Uri;
 use crate::client::Client;
 use crate::request::{Request};
-use crate::request_recorder::RequestRecorder;
+use crate::recorder::RequestRecorder;
 
 #[derive(Copy, Clone)]
 pub struct Next<'a> {

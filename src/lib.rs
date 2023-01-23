@@ -9,7 +9,7 @@ pub use response::{InMemoryResponse, Response};
 
 mod client;
 mod error;
-pub mod request_recorder;
+pub mod recorder;
 mod request;
 mod response;
 pub mod middleware;
