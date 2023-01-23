@@ -38,6 +38,7 @@ impl RequestRecorder {
         let path = std::env::current_dir().unwrap().join("data").join("vcr");
         println!("Request recorder opened at {}", path.display());
         // println!("Request recorder opened at {}", path.display());
+        #[allow(clippy::mutable_key_type)]
         let requests: HashMap<InMemoryRequest, InMemoryResponse> = load_requests(&path)
             .map(|r| (r.request, r.response))
             .collect();
