@@ -4,8 +4,7 @@
       "method": "GET",
       "url": "https://www.jsonip.com/",
       "headers": {
-        "secret": "**********",
-        "user-agent": "httpclient/0.11.1"
+        "user-agent": "test-client"
       }
     },
     "response": {
@@ -15,7 +14,7 @@
         "access-control-allow-origin": "*",
         "connection": "keep-alive",
         "content-type": "application/json; charset=utf-8",
-        "date": "Mon, 23 Jan 2023 07:46:14 GMT",
+        "date": "Mon, 23 Jan 2023 09:20:09 GMT",
         "server": "nginx/1.20.2",
         "strict-transport-security": "max-age=31536000;",
         "transfer-encoding": "chunked"

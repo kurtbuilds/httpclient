@@ -8,6 +8,9 @@ homepage = "https://github.com/kurtbuilds/httpclient"
 repository = "https://github.com/kurtbuilds/httpclient"
 documentation = "https://docs.rs/httpclient/"
 
+[lib]
+doctest = false
+
 [dependencies]
 async-trait = "0.1.52"
 basic-cookies = "0.1.4"

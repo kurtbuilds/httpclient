@@ -146,15 +146,16 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(RecorderMiddleware::new().mode(RecorderMode::ForceNoRequests));
+            .with_middleware(RecorderMiddleware::new()
+                .mode(RecorderMode::ForceNoRequests)
+            );
 
         let res = serde_json::to_value(client.get("/")
-            .send()
             .await
             .unwrap()
             .json::<HashMap<String, String>>()
             .await
             .unwrap()).unwrap();
-        assert_eq!(res, serde_json::json!({"ip":"70.106.72.13","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
+        assert_eq!(res, serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
     }
 }

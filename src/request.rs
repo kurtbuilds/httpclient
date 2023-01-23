@@ -316,7 +316,7 @@ impl Into<hyper::Request<hyper::Body>> for Request {
 
 
 #[derive(Debug)]
-pub struct RequestBuilder<'a, C = Client, B = Body> {
+pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
     client: &'a C,
 
     pub version: Version,
@@ -326,7 +326,17 @@ pub struct RequestBuilder<'a, C = Client, B = Body> {
     pub body: Option<B>,
 }
 
-impl<'a, C> RequestBuilder<'a, C, InMemoryBody> {
+impl<'a, C> RequestBuilder<'a, C> {
+    pub fn new(client: &'a C, method: Method, uri: Uri) -> RequestBuilder<'a, C, InMemoryBody> {
+        RequestBuilder {
+            client,
+            version: Default::default(),
+            method,
+            uri,
+            headers: Default::default(),
+            body: Default::default(),
+        }
+    }
     /// Overwrite the current body with the provided JSON object.
     pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(InMemoryBody::Json(serde_json::to_value(obj).unwrap()));
@@ -375,7 +385,7 @@ impl<'a> RequestBuilder<'a> {
             middlewares: self.client.middlewares.as_slice(),
         };
         let request = self.build();
-        next.run(request).await
+        next.run(request.into()).await
     }
 
     /// Normally, we have to `await` the body as well. This convenience method makes the body
@@ -416,12 +426,12 @@ impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
 }
 
 impl<'a, C, B> RequestBuilder<'a, C, B> {
-    pub fn new(client: &'a C, method: Method, uri: Uri) -> RequestBuilder<'a, C, B> {
+    pub fn for_client(client: &'a C) -> RequestBuilder<'a, C> {
         RequestBuilder {
             client,
             version: Default::default(),
-            method,
-            uri,
+            method: Default::default(),
+            uri: Default::default(),
             headers: Default::default(),
             body: Default::default(),
         }
@@ -524,7 +534,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     /// let client = Client::new();
     /// let mut r = RequestBuilder::new(&client, Method::GET, "http://example.com/foo?a=1".parse().unwrap());
     /// r = r.query("b", "2");
-    /// assert_eq!(r.uri().to_string(), "http://example.com/foo?a=1&b=2");
+    /// assert_eq!(r.uri.to_string(), "http://example.com/foo?a=1&b=2");
     /// ```
     pub fn query(mut self, k: &str, v: &str) -> Self {
         let mut parts = std::mem::take(&mut self.uri).into_parts();
@@ -577,6 +587,7 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::collections::HashMap;
     use std::hash::{Hash, Hasher};
+    use serde_json::json;
     use super::*;
 
     #[test]
@@ -587,8 +598,9 @@ mod tests {
             b: u32,
         }
         let data = Foobar { a: 1, b: 2 };
-        let r1 = InMemoryRequest::test("post", "http://example.com/")
-            .set_body(InMemoryBody::Json(serde_json::to_value(&data).unwrap()));
+        let r1 = Request::build_post("http://example.com/")
+            .json(&data)
+            .build();
         let s = serde_json::to_string_pretty(&r1).unwrap();
         let r2: InMemoryRequest = serde_json::from_str(&s).unwrap();
         assert_eq!(r1, r2);
@@ -639,5 +651,17 @@ mod tests {
             .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
         assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
+    }
+
+    #[test]
+    fn test_client_request() {
+        let client = Client::new();
+        let _ = client.post("/foo").json(json!({"a": 1}));
+    }
+
+    #[test]
+    fn test_request_builder() {
+        let client = Client::new();
+        let _ = RequestBuilder::new(&client, Method::POST, "http://example.com/foo".parse().unwrap());
     }
 }
