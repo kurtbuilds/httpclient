@@ -65,7 +65,7 @@ impl Client {
     }
 
     fn build_uri(&self, uri_or_path: &str) -> Uri {
-        let uri = self.base_url.as_ref().map(|s| s.clone() + uri_or_path).unwrap_or(uri_or_path.to_string());
+        let uri = self.base_url.as_ref().map(|s| s.clone() + uri_or_path).unwrap_or_else(|| uri_or_path.to_string());
         Uri::from_str(&uri).unwrap()
     }
 
