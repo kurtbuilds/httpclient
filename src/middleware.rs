@@ -198,7 +198,7 @@ impl Middleware for FollowRedirectsMiddleware {
                 return Err(Error::TooManyRedirectsError);
             }
             let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
-            let url = fix_url(&request.url(), redirect);
+            let url = fix_url(request.url(), redirect);
             let request = request.clone();
             let request = request.set_url(url);
             allowed_redirects -= 1;

@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::{InMemoryResult, Result};
 use crate::error::ProtocolError;
-use crate::sanitize::sanitize_value;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -31,10 +31,10 @@ impl TryInto<String> for InMemoryBody {
         match self {
             InMemoryBody::Empty => Ok("".to_string()),
             InMemoryBody::Bytes(b) => {
-                String::from_utf8(b).map_err(|e| crate::Error::Utf8Error(e))
+                String::from_utf8(b).map_err(crate::Error::Utf8Error)
             }
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(|e| crate::Error::JsonEncodingError(e))
+            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(crate::Error::JsonEncodingError)
         }
     }
 }
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_serialization() {
-        let body = InMemoryBody::new_json(serde_json::json!({
+        let _body = InMemoryBody::new_json(serde_json::json!({
             "foo": "bar"
         }));
         assert_eq!(1, 0);

@@ -1,23 +1,23 @@
-use std::borrow::Cow;
-use std::future::IntoFuture;
+
+
 use std::str::FromStr;
 
-use futures::future::BoxFuture;
-use http::{HeaderMap, HeaderValue, Version};
-use http::header::HeaderName;
-use http::uri::PathAndQuery;
+
+use http::{HeaderMap, Version};
+
+
 use hyper::{Method, Uri};
-use serde::{Deserialize, Deserializer, Serialize};
-use serde::de::Error;
-use serde_json::Value;
+
+
+
 
 pub use builder::RequestBuilder;
 pub use memory::InMemoryRequest;
 
-use crate::{Body, Response, Result};
+use crate::{Body, Result};
 use crate::body::InMemoryBody;
-use crate::client::Client;
-use crate::middleware::Next;
+
+
 
 mod memory;
 mod builder;
