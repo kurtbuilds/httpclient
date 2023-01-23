@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 
 #[derive(Debug)]
-pub(crate) enum ProtocolError {
+pub enum ProtocolError {
     HttpProtocolError(hyper::Error),
     Utf8Error(FromUtf8Error),
     JsonEncodingError(serde_json::Error),

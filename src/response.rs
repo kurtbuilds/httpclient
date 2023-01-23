@@ -109,6 +109,15 @@ impl Response {
         })
     }
 
+    pub fn error_for_status(self) -> Result<Self> {
+        let status = self.status;
+        if status.is_server_error() || status.is_client_error() {
+            Err(crate::Error::HttpError(self))
+        } else {
+            Ok(self)
+        }
+    }
+
     pub async fn text(self) -> Result<String> {
         self.body.into_text().await
     }
@@ -124,14 +133,7 @@ impl Response {
 }
 
 impl<T> Response<T> {
-    pub fn error_for_status(self) -> std::result::Result<Self, crate::Error<Body>> {
-        let status = self.status;
-        if status.is_server_error() || status.is_client_error() {
-            Err(crate::Error::HttpError(self))
-        } else {
-            Ok(self)
-        }
-    }
+
     pub fn status(&self) -> StatusCode {
         self.status
     }
