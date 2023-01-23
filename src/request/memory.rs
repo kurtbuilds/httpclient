@@ -1,11 +1,13 @@
 use std::borrow::Cow;
-use serde::de::Error;
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
 use std::str::FromStr;
+
+use http::{HeaderMap, HeaderValue, Method, Uri, Version};
 use http::header::HeaderName;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
 use serde::ser::SerializeMap;
-use crate::{InMemoryBody, Request};
+
+use crate::{InMemoryBody, Request, Result};
 
 pub type InMemoryRequest = Request<InMemoryBody>;
 
@@ -106,7 +108,10 @@ impl Serialize for InMemoryRequest {
         let mut map = serializer.serialize_map(Some(size))?;
         map.serialize_entry("method", &self.method.as_str())?;
         map.serialize_entry("url", &self.uri.to_string().as_str())?;
-        map.serialize_entry("headers", &crate::http::SortedSerializableHeaders::from(&self.headers))?;
+        let ordered: std::collections::BTreeMap<_, _> = self.headers().iter()
+            .map(|(k, v)| (k.as_str(), v.to_str().unwrap()))
+            .collect();
+        map.serialize_entry("headers", &ordered)?;
         if !self.body.is_empty() {
             map.serialize_entry("body", &self.body)?;
         }
@@ -114,78 +119,75 @@ impl Serialize for InMemoryRequest {
     }
 }
 
-
 impl<'de> Deserialize<'de> for InMemoryRequest {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(InMemoryRequestVisitor)
-    }
-}
-pub struct InMemoryRequestVisitor;
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        pub struct InMemoryRequestVisitor;
 
+        impl<'de> serde::de::Visitor<'de> for InMemoryRequestVisitor {
+            type Value = InMemoryRequest;
 
-impl<'de> serde::de::Visitor<'de> for InMemoryRequestVisitor {
-    type Value = InMemoryRequest;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("A map with the following keys: method, url, headers, body")
+            }
 
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("A map with the following keys: method, url, headers, body")
-    }
-
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
-        let mut method = None;
-        let mut url = None;
-        let mut headers = None;
-        let mut body = None;
-        while let Some(key) = map.next_key::<Cow<str>>()? {
-            match key.as_ref() {
-                "method" => {
-                    if method.is_some() {
-                        return Err(<A::Error as Error>::duplicate_field("method"));
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
+                let mut method = None;
+                let mut url = None;
+                let mut headers = None;
+                let mut body = None;
+                while let Some(key) = map.next_key::<Cow<str>>()? {
+                    match key.as_ref() {
+                        "method" => {
+                            if method.is_some() {
+                                return Err(<A::Error as Error>::duplicate_field("method"));
+                            }
+                            let s = map.next_value::<String>()?;
+                            method = Some(Method::from_str(&s).map_err(|_e|
+                                <A::Error as Error>::custom("Invalid value for field `method`.")
+                            )?);
+                        }
+                        "url" => {
+                            if url.is_some() {
+                                return Err(<A::Error as Error>::duplicate_field("url"));
+                            }
+                            let s = map.next_value::<String>()?;
+                            url = Some(Uri::from_str(&s).map_err(|_e|
+                                <A::Error as Error>::custom("Invalid value for field `url`.")
+                            )?);
+                        }
+                        "body" | "data" => {
+                            if body.is_some() {
+                                return Err(<A::Error as Error>::duplicate_field("data"));
+                            }
+                            body = Some(map.next_value::<InMemoryBody>()?);
+                        }
+                        "headers" => {
+                            if headers.is_some() {
+                                return Err(<A::Error as Error>::duplicate_field("headers"));
+                            }
+                            headers = Some(map.next_value::<std::collections::BTreeMap<&str, &str>>()?);
+                        }
+                        _ => {
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
                     }
-                    let s = map.next_value::<String>()?;
-                    method = Some(Method::from_str(&s).map_err(|_e|
-                        <A::Error as Error>::custom("Invalid value for field `method`.")
-                    )?);
                 }
-                "url" => {
-                    if url.is_some() {
-                        return Err(<A::Error as Error>::duplicate_field("url"));
-                    }
-                    let s = map.next_value::<String>()?;
-                    url = Some(Uri::from_str(&s).map_err(|_e|
-                        <A::Error as Error>::custom("Invalid value for field `url`.")
-                    )?);
-                }
-                "body" | "data" => {
-                    if body.is_some() {
-                        return Err(<A::Error as Error>::duplicate_field("data"));
-                    }
-                    body = Some(map.next_value::<InMemoryBody>()?);
-                }
-                "headers" => {
-                    if headers.is_some() {
-                        return Err(<A::Error as Error>::duplicate_field("headers"));
-                    }
-                    let s = map.next_value::<crate::http::SortedSerializableHeaders>()?;
-                    headers = Some(s);
-                }
-                _ => {
-                    map.next_value::<serde::de::IgnoredAny>()?;
-                }
+                let method = method.ok_or_else(|| Error::missing_field("method"))?;
+                let url = url.ok_or_else(|| Error::missing_field("url"))?;
+                let headers = HeaderMap::from_iter(headers.ok_or_else(|| Error::missing_field("headers"))?.iter()
+                    .map(|(k, v)| (http::header::HeaderName::from_bytes(k.as_bytes()).unwrap(), http::header::HeaderValue::from_str(v).unwrap()))
+                );
+                let body = body.unwrap_or(InMemoryBody::Empty);
+                Ok(InMemoryRequest {
+                    method,
+                    uri: url,
+                    version: Default::default(),
+                    headers,
+                    body,
+                })
             }
         }
-        let method = method.ok_or_else(|| Error::missing_field("method"))?;
-        let url = url.ok_or_else(|| Error::missing_field("url"))?;
-        let headers = headers.ok_or_else(|| Error::missing_field("headers"))?;
-        let body = body.unwrap_or(InMemoryBody::Empty);
-        Ok(InMemoryRequest {
-            method,
-            uri: url,
-            version: Default::default(),
-            headers: headers.into(),
-            body,
-        })
+
+        deserializer.deserialize_map(InMemoryRequestVisitor)
     }
 }

@@ -1,3 +1,4 @@
+use http::{HeaderMap, HeaderValue};
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use serde_json::Value;
@@ -47,5 +48,14 @@ pub fn sanitize_value(value: &mut Value) {
             }
         }
         _ => {}
+    }
+}
+
+pub fn sanitize_headers(headers: &mut HeaderMap) {
+    let sanitized: HeaderValue = SANITIZED_VALUE.parse().unwrap();
+    for (key, value) in headers.iter_mut() {
+        if should_sanitize(key.as_str()) {
+            *value = sanitized.clone();
+        }
     }
 }

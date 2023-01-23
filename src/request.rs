@@ -14,8 +14,7 @@ use hyper::{Method, Uri};
 pub use builder::RequestBuilder;
 pub use memory::InMemoryRequest;
 
-use crate::{Body, Result};
-use crate::body::InMemoryBody;
+use crate::{Body, Result, InMemoryBody};
 
 
 

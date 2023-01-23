@@ -1,17 +1,13 @@
-mod memory;
-
 use http::{HeaderMap, StatusCode, Version};
 use hyper::body::Bytes;
-
-use crate::body::{Body};
-use crate::{Result};
-
-
-use serde::de::{DeserializeOwned};
-
-
+use serde::{de::DeserializeOwned};
 
 pub use memory::*;
+
+use crate::Result;
+use crate::body::Body;
+
+mod memory;
 
 #[derive(Debug)]
 pub struct Response<T = Body> {

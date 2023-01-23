@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use crate::{InMemoryRequest, InMemoryResult, InMemoryResponse, InMemoryBody};
-use crate::sanitize::sanitize_value;
+use crate::{InMemoryRequest, InMemoryResponse, InMemoryResult};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -71,9 +70,7 @@ impl RequestRecorder {
             HashMap::new()
         };
         // println!("Recording response: {:?}", response);
-        if let InMemoryBody::Json(value) = &mut response.body {
-            sanitize_value(value);
-        }
+        response.sanitize();
         map.insert(request, response);
         let f = fs::File::create(&path)?;
         let res = map.into_iter().map(|(k, v)| RequestResponsePair { request: k, response: v }).collect::<Vec<_>>();
