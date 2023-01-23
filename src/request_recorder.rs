@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use crate::{InMemoryRequest, InMemoryResponse, Response};
+use crate::{InMemoryRequest, InMemoryResponse};
 use crate::body::InMemoryBody;
 use crate::sanitize::sanitize_value;
 
