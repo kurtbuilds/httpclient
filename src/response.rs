@@ -3,13 +3,13 @@ mod memory;
 use http::{HeaderMap, StatusCode, Version};
 use hyper::body::Bytes;
 
-use crate::body::{Body, InMemoryBody};
-use crate::{InMemoryResult, Result};
-use serde::{Deserialize, Serialize, Serializer};
+use crate::body::{Body};
+use crate::{Result};
 
-use serde::de::{DeserializeOwned, Error};
-use serde::ser::SerializeMap;
-use crate::http::SortedSerializableHeaders;
+
+use serde::de::{DeserializeOwned};
+
+
 
 pub use memory::*;
 
