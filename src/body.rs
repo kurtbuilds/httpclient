@@ -30,11 +30,10 @@ impl TryInto<String> for InMemoryBody {
         match self {
             InMemoryBody::Empty => Ok("".to_string()),
             InMemoryBody::Bytes(b) => {
-                let (s, _, _) = encoding_rs::UTF_8.decode(&b);
-                Ok(s.to_string())
+                String::from_utf8(b).map_err(|e| crate::Error::Utf8Error(e))
             }
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => Ok(serde_json::to_string(&val)?),
+            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(|e| crate::Error::JsonEncodingError(e))
         }
     }
 }
@@ -76,8 +75,7 @@ impl InMemoryBody {
         match self {
             InMemoryBody::Empty => Err(crate::Error::JsonEncodingError(serde_json::Error::custom("Empty body"))),
             InMemoryBody::Bytes(b) => {
-                let (s, _, _) = encoding_rs::UTF_8.decode(&b);
-                serde_json::from_str(&s).map_err(crate::Error::JsonEncodingError)
+                serde_json::from_slice(&b).map_err(crate::Error::JsonEncodingError)
             }
             InMemoryBody::Text(t) => {
                 serde_json::from_str(&t).map_err(crate::Error::JsonEncodingError)

@@ -174,12 +174,13 @@ impl<T> Response<T> {
     }
 
     pub fn get_cookie(&self, name: &str) -> Option<&str> {
-        self.parts.headers.get("set-cookie")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| {
-                let cookies = basic_cookies::Cookie::parse(v).ok()?;
-                cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
-            })
+        let value = self.parts.headers.get("set-cookie")?;
+        let value = value.to_str().ok()?;
+        let cookie = cookie::Cookie::split_parse_encoded(value);
+        let cookie = cookie.into_iter()
+            .filter_map(|c| c.ok())
+            .find(|c| c.name() == name)?;
+        cookie.value_raw()
     }
 }
 
