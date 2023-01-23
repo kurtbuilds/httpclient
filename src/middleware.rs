@@ -154,6 +154,7 @@ impl Middleware for LoggerMiddleware {
     }
 }
 
+#[derive(Default)]
 pub struct FollowRedirectsMiddleware {}
 
 impl FollowRedirectsMiddleware {
