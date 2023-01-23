@@ -24,7 +24,7 @@
 `httpclient` is a user-friendly http client in Rust. Where possible, it closely mimics the `reqwest` API. Why build a 
 new http client?
 
-- `httpclient` `Request and `Response` objects are serde-serializable, which enables record/replay functionality. See
+- `httpclient::{Request, Response}` objects are serde-serializable, which enables record/replay functionality. See
 the example below to see it in action.
 - `httpclient` provides an API for user-extensible middleware. Built-in middleware includes redirect, retry, logging, 
 and record/replay.
