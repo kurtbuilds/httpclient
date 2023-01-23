@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use crate::{InMemoryRequest, InMemoryResponse};
+use crate::{InMemoryRequest, InMemoryResponse, Response};
+use crate::body::InMemoryBody;
+use crate::sanitize::sanitize_value;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,13 +56,13 @@ impl RequestRecorder {
         let mut path = self.base_path.clone();
         path.push(request.host());
         path.push(&request.path()[1..]);
-        path.push(request.method.as_str().to_lowercase() + ".json");
+        path.push(request.method().as_str().to_lowercase() + ".json");
         path
     }
 
-    pub async fn record_response(&self, request: InMemoryRequest, response: InMemoryResponse) -> Result<InMemoryResponse, crate::Error> {
+    pub fn record_response(&self, request: InMemoryRequest, mut response: InMemoryResponse) -> Result<(), crate::Error> {
         let path = self.filepath_for_request(&request);
-        // println!("Recording response to {}", path.display());
+        println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
         let mut map = if let Ok(f) = fs::File::open(&path) {
             let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
@@ -69,12 +71,15 @@ impl RequestRecorder {
         } else {
             HashMap::new()
         };
-        // println!("Recording response: {:?}", response);
-        map.insert(request, response.clone());
+        println!("Recording response: {:?}", response);
+        if let InMemoryBody::Json(value)  = &mut response.body {
+            sanitize_value(value);
+        }
+        map.insert(request, response);
         let f = fs::File::create(&path)?;
         let res = map.into_iter().map(|(k, v)| RequestResponsePair { request: k, response: v }).collect::<Vec<_>>();
         serde_json::to_writer_pretty(f, &res).map_err(crate::Error::from)?;
-        Ok(response)
+        Ok(())
     }
 
     pub fn load_from_path(_path: &Path) {

@@ -40,27 +40,22 @@ pub enum Error<T = Body> {
 
 impl Error {
     /// Get the error status code.
-    pub fn status(&self) -> StatusCode {
+    pub fn status(&self) -> Option<StatusCode> {
         match self {
-            Error::HttpError(r) => r.status,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::HttpError(r) => Some(r.status()),
+            _ => None,
         }
     }
 
     pub async fn into_memory(self) -> Error<InMemoryBody> {
         match self {
             Error::HttpError(r) => {
-                let content_type = r.headers.get(hyper::header::CONTENT_TYPE);
-                let body = match r.body.into_memory(content_type).await {
+                let (parts, body) = r.into_parts();
+                let body = match body.into_memory().await {
                     Ok(body) => body,
                     Err(e) => return e.into(),
                 };
-                Error::HttpError(InMemoryResponse {
-                    status: r.status,
-                    version: r.version,
-                    headers: r.headers,
-                    body,
-                })
+                Error::HttpError(InMemoryResponse::from_parts(parts, body))
             }
             Error::Generic(e) => Error::Generic(e),
             Error::TooManyRedirectsError => Error::TooManyRedirectsError,
@@ -83,7 +78,7 @@ impl Display for Error {
             Error::JsonEncodingError(e) => write!(f, "JsonEncodingError: {}", e),
             Error::IoError(e) => write!(f, "IoError: {}", e),
             Error::HttpError(r) => {
-                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.status, r.headers, r.body)
+                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
             }
             Error::TooManyRedirectsError => write!(f, "Too many redirects"),
         }
@@ -139,5 +134,11 @@ impl From<hyper::Error> for ProtocolError {
 impl From<serde_json::Error> for ProtocolError {
     fn from(value: serde_json::Error) -> Self {
         Self::JsonEncodingError(value)
+    }
+}
+
+impl From<FromUtf8Error> for ProtocolError {
+    fn from(value: FromUtf8Error) -> Self {
+        Self::Utf8Error(value)
     }
 }

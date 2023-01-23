@@ -1,8 +1,8 @@
-
+extern crate core;
 
 pub use ::http::{Method, Uri};
 
-pub use body::Body;
+pub use body::{Body, InMemoryBody};
 pub use middleware::Middleware;
 pub use request::{Request, RequestBuilder, InMemoryRequest};
 pub use response::{Response, InMemoryResponse};
@@ -18,4 +18,5 @@ mod response;
 pub mod middleware;
 mod body;
 mod http;
+mod sanitize;
 

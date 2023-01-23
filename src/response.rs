@@ -13,19 +13,17 @@ pub type InMemoryResponse = Response<InMemoryBody>;
 
 #[derive(Debug)]
 pub struct Response<T = Body> {
-    pub version: Version,
-    pub status: StatusCode,
-    pub headers: HeaderMap,
+    pub parts: ResponseParts,
     pub body: T,
 }
 
 
 impl Serialize for InMemoryResponse {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let size = 2 + if self.body.is_empty() { 0 } else { 1 };
+        let size = 2 + usize::from(!self.body.is_empty());
         let mut map = serializer.serialize_map(Some(size))?;
-        map.serialize_entry("status", &self.status.as_u16())?;
-        map.serialize_entry("headers", &crate::http::SortedSerializableHeaders::from(&self.headers))?;
+        map.serialize_entry("status", &self.status().as_u16())?;
+        map.serialize_entry("headers", &crate::http::SortedSerializableHeaders::from(self.headers()))?;
         if !self.body.is_empty() {
             map.serialize_entry("body", &self.body)?;
         }
@@ -88,29 +86,49 @@ impl<'de> serde::de::Visitor<'de> for InMemoryResponseVisitor {
         let status = status.ok_or_else(|| Error::missing_field("status"))?;
         let headers = headers.ok_or_else(|| Error::missing_field("headers"))?;
         let body = body.ok_or_else(|| Error::missing_field("data"))?;
-        Ok(InMemoryResponse {
-            version: Default::default(),
+        Ok(InMemoryResponse::new(status, headers.into(), body))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ResponseParts {
+    pub version: Version,
+    pub status: StatusCode,
+    pub headers: HeaderMap,
+}
+
+impl InMemoryResponse {
+    pub fn new(status: StatusCode, headers: HeaderMap, body: InMemoryBody) -> Self {
+        Self::from_parts(ResponseParts {
             status,
-            headers: headers.into(),
-            body,
-        })
+            headers,
+            version: Version::default(),
+        }, body)
+    }
+
+    pub fn text(self) -> Result<String> {
+        self.body.text()
+    }
+
+    pub fn json<U: DeserializeOwned>(self) -> Result<U> {
+        self.body.json()
+    }
+
+    pub fn bytes(self) -> Result<Bytes> {
+        self.body.bytes()
     }
 }
 
 impl Response {
-    pub(crate) async fn into_memory(self) -> Result<InMemoryResponse> {
-        let content_type = self.headers.get(hyper::header::CONTENT_TYPE);
-        let body = self.body.into_memory(content_type).await?;
-        Ok(InMemoryResponse {
-            status: self.status,
-            version: self.version,
-            headers: self.headers,
-            body,
-        })
+    pub(crate) async fn into_content(self) -> Result<InMemoryResponse> {
+        let (parts, body) = self.into_parts();
+        let content_type = parts.headers.get(hyper::header::CONTENT_TYPE);
+        let body = body.into_content_type(content_type).await?;
+        Ok(InMemoryResponse::from_parts(parts, body))
     }
 
     pub fn error_for_status(self) -> Result<Self> {
-        let status = self.status;
+        let status = self.status();
         if status.is_server_error() || status.is_client_error() {
             Err(crate::Error::HttpError(self))
         } else {
@@ -119,47 +137,58 @@ impl Response {
     }
 
     pub async fn text(self) -> Result<String> {
-        self.body.into_text().await
+        let body = self.body.into_memory().await?;
+        body.text()
     }
 
     pub async fn json<U: DeserializeOwned>(self) -> Result<U> {
-        self.body.into_json::<U>().await
+        let body = self.body.into_memory().await?;
+        body.json()
     }
 
     /// Get body as bytes.
     pub async fn bytes(self) -> Result<Bytes> {
-        self.body.into_bytes().await
+        let body = self.body.into_memory().await?;
+        body.bytes()
     }
 }
 
 impl<T> Response<T> {
+    pub fn from_parts(parts: ResponseParts, body: T) -> Self {
+        Self {
+            parts,
+            body,
+        }
+    }
+
+    pub fn into_parts(self) -> (ResponseParts, T) {
+        (self.parts, self.body)
+    }
 
     pub fn status(&self) -> StatusCode {
-        self.status
+        self.parts.status
     }
 
     pub fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.parts.headers
     }
 
     pub fn get_cookie(&self, name: &str) -> Option<&str> {
-        self.headers.get("set-cookie")
+        self.parts.headers.get("set-cookie")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| {
                 let cookies = basic_cookies::Cookie::parse(v).ok()?;
                 cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
             })
     }
-
 }
 
 impl From<InMemoryResponse> for Response {
     fn from(value: InMemoryResponse) -> Self {
+        let (parts, body) = value.into_parts();
         Self {
-            status: value.status,
-            version: value.version,
-            headers: value.headers,
-            body: value.body.into(),
+            parts,
+            body: body.into(),
         }
     }
 }
@@ -168,9 +197,11 @@ impl From<http::Response<hyper::Body>> for Response {
     fn from(value: http::Response<hyper::Body>) -> Self {
         let (parts, body) = value.into_parts();
         Self {
-            status: parts.status,
-            version: parts.version,
-            headers: parts.headers,
+            parts: ResponseParts {
+                status: parts.status,
+                headers: parts.headers,
+                version: parts.version,
+            },
             body: Body::Hyper(body),
         }
     }
@@ -180,9 +211,7 @@ impl From<http::Response<hyper::Body>> for Response {
 impl Clone for InMemoryResponse {
     fn clone(&self) -> Self {
         Self {
-            status: self.status,
-            version: self.version,
-            headers: self.headers.clone(),
+            parts: self.parts.clone(),
             body: self.body.clone(),
         }
     }

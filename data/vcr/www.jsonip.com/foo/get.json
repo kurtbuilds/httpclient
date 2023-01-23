@@ -1,0 +1,16 @@
+[
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://www.jsonip.com/foo",
+      "headers": {}
+    },
+    "response": {
+      "status": 200,
+      "headers": {},
+      "body": {
+        "secret": "**********"
+      }
+    }
+  }
+]

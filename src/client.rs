@@ -69,13 +69,13 @@ impl Client {
         Uri::from_str(&uri).unwrap()
     }
 
-    pub fn get(&self, url_or_path: &str) -> RequestBuilder {
+    pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(url_or_path);
         RequestBuilder::new(self, Method::GET, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
     }
 
-    pub fn post(&self, uri_or_path: &str) -> RequestBuilder {
+    pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::POST, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))

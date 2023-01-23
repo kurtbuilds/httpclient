@@ -34,9 +34,18 @@ pub trait Middleware: Send + Sync {
     }
 }
 
+/// This middleware caches requests to the local filesystem. Subsequent requests will return results
+/// from the filesystem, and not touch the remote server.
+///
+/// The recordings are sanitized to hide secrets.
+///
+/// Use `.mode()` to configure the behavior:
+/// - `RecorderMode::RecordOrRequest` (default): Will check for recordings, but will make the request if no recording is found.
+/// - `RecorderMode::IgnoreRecordings`: Always make the request. (Use to force refresh recordings.)
+/// - `RecorderMode::ForceNoRequests`: Fail if no recording is found. (Use to run tests without hitting the remote server.)
 pub struct RecorderMiddleware {
     mode: RecorderMode,
-    request_recorder: RequestRecorder,
+    pub request_recorder: RequestRecorder,
 }
 
 impl RecorderMiddleware {
@@ -108,12 +117,13 @@ impl Middleware for RecorderMiddleware {
             return Err(Error::Generic("No recording found".to_string()));
         }
         let response = next.run(request.clone().into()).await?;
-        let response = response.into_memory().await?;
-        let response = self.request_recorder.record_response(request, response).await?;
+        let response = response.into_content().await?;
+        self.request_recorder.record_response(request, response.clone())?;
         Ok(response.into())
     }
 }
 
+#[derive(Default)]
 pub struct RetryMiddleware {}
 
 #[async_trait]
@@ -135,6 +145,7 @@ impl Middleware for RetryMiddleware {
     }
 }
 
+#[derive(Default)]
 pub struct LoggerMiddleware {}
 
 impl LoggerMiddleware {
@@ -146,7 +157,7 @@ impl LoggerMiddleware {
 #[async_trait]
 impl Middleware for LoggerMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let url = request.url.to_string();
+        let url = request.uri().to_string();
         println!("Request: {:?}", request);
         let res = next.run(request).await;
         println!("Response to {}: {:?}", url, res);
@@ -182,14 +193,14 @@ impl Middleware for FollowRedirectsMiddleware {
         let request = request.into_memory().await?;
         let mut res = next.run(request.clone().into()).await?;
         let mut allowed_redirects = 10;
-        while res.status.is_redirection() {
+        while res.status().is_redirection() {
             if allowed_redirects == 0 {
                 return Err(Error::TooManyRedirectsError);
             }
             let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
-            let url = fix_url(&request.url, redirect);
-            let mut request = request.clone();
-            request.url = url;
+            let url = fix_url(&request.url(), redirect);
+            let request = request.clone();
+            let request = request.set_url(url);
             allowed_redirects -= 1;
             res = next.run(request.into()).await?;
         }

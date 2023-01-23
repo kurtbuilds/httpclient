@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use http::{HeaderMap};
 use http::header::HeaderName;
+use crate::sanitize::{SANITIZED_VALUE, should_sanitize};
 
 
 /// Only used for de/serialization. http::HeaderMap has a number of optimizations, so we want
@@ -16,7 +17,13 @@ impl From<&HeaderMap> for SortedSerializableHeaders {
     fn from(headers: &HeaderMap) -> Self {
         let mut map = BTreeMap::new();
         for (key, value) in headers.iter() {
-            map.insert(key.to_string(), value.to_str().unwrap().to_string());
+            let key = key.as_str().to_string();
+            let value = if should_sanitize(&key) {
+                SANITIZED_VALUE.to_string()
+            } else {
+                value.to_str().unwrap().to_string()
+            };
+            map.insert(key, value);
         }
         SortedSerializableHeaders(map)
     }

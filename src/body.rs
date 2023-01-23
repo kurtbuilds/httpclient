@@ -1,17 +1,12 @@
-
 use std::hash::Hasher;
-use std::pin::Pin;
-
-use std::task::{Context, Poll};
-use encoding_rs::Encoding;
-use http::{HeaderMap, HeaderValue};
-use hyper::body::{Bytes, HttpBody, SizeHint};
-use serde::{Serialize, Deserialize};
+use http::HeaderValue;
+use hyper::body::{Bytes, HttpBody};
+use serde::{Deserialize, Serialize};
 use serde::de::{DeserializeOwned, Error};
 use serde_json::Value;
-use crate::{Result};
-use crate::error::ProtocolError;
 
+use crate::Result;
+use crate::error::ProtocolError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -22,7 +17,47 @@ pub enum InMemoryBody {
     Json(Value),
 }
 
+impl Default for InMemoryBody {
+    fn default() -> Self {
+        InMemoryBody::Empty
+    }
+}
+
+impl TryInto<String> for InMemoryBody {
+    type Error = crate::Error;
+
+    fn try_into(self) -> std::result::Result<String, Self::Error> {
+        match self {
+            InMemoryBody::Empty => Ok("".to_string()),
+            InMemoryBody::Bytes(b) => {
+                let (s, _, _) = encoding_rs::UTF_8.decode(&b);
+                Ok(s.to_string())
+            }
+            InMemoryBody::Text(s) => Ok(s),
+            InMemoryBody::Json(val) => Ok(serde_json::to_string(&val)?),
+        }
+    }
+}
+
+impl TryInto<Bytes> for InMemoryBody {
+    type Error = crate::Error;
+
+    fn try_into(self) -> std::result::Result<Bytes, Self::Error> {
+        match self {
+            InMemoryBody::Empty => Ok(Bytes::new()),
+            InMemoryBody::Bytes(b) => Ok(Bytes::from(b)),
+            InMemoryBody::Text(s) => Ok(Bytes::from(s)),
+            InMemoryBody::Json(val) => Ok(Bytes::from(serde_json::to_string(&val)?)),
+        }
+    }
+}
+
+
 impl InMemoryBody {
+    pub fn empty() -> Self {
+        InMemoryBody::Empty
+    }
+
     pub fn is_empty(&self) -> bool {
         use InMemoryBody::*;
         match self {
@@ -32,6 +67,31 @@ impl InMemoryBody {
             Json(_) => false,
         }
     }
+
+    pub fn text(self) -> Result<String> {
+        self.try_into()
+    }
+
+    pub fn json<T: DeserializeOwned>(self) -> Result<T> {
+        match self {
+            InMemoryBody::Empty => Err(crate::Error::JsonEncodingError(serde_json::Error::custom("Empty body"))),
+            InMemoryBody::Bytes(b) => {
+                let (s, _, _) = encoding_rs::UTF_8.decode(&b);
+                serde_json::from_str(&s).map_err(crate::Error::JsonEncodingError)
+            }
+            InMemoryBody::Text(t) => {
+                serde_json::from_str(&t).map_err(crate::Error::JsonEncodingError)
+            }
+            InMemoryBody::Json(v) => {
+                serde_json::from_value(v).map_err(crate::Error::JsonEncodingError)
+            }
+        }
+    }
+
+    pub fn bytes(self) -> Result<Bytes> {
+        self.try_into()
+    }
+
 }
 
 impl From<InMemoryBody> for Body {
@@ -67,6 +127,11 @@ pub enum Body {
     Hyper(hyper::Body),
 }
 
+impl Default for Body {
+    fn default() -> Self {
+        Body::InMemory(InMemoryBody::default())
+    }
+}
 
 impl Body {
     pub fn bytes(bytes: impl Into<Vec<u8>>) -> Self {
@@ -90,78 +155,35 @@ impl Body {
         }
     }
 
-    pub async fn into_memory(self, content_type: Option<&HeaderValue>) -> Result<InMemoryBody, ProtocolError> {
+    pub async fn into_memory(self) -> Result<InMemoryBody, ProtocolError> {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
                 let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let encoding = Encoding::for_label(&[]).unwrap_or(encoding_rs::UTF_8);
-                let (text, _, _) = encoding.decode(&bytes);
+                Ok(InMemoryBody::Bytes(bytes.to_vec()))
+            }
+        }
+    }
+
+    pub async fn into_content_type(self, content_type: Option<&HeaderValue>) -> Result<InMemoryBody, ProtocolError> {
+        match self {
+            Body::InMemory(m) => Ok(m),
+            Body::Hyper(hyper_body) => {
+                let bytes = hyper::body::to_bytes(hyper_body).await?;
                 let content_type = content_type.map(|ct| ct.to_str().unwrap().split(';').next().unwrap());
                 match content_type {
-                    // consider if we should always return text
-                    Some("application/json") => Ok(InMemoryBody::Json(serde_json::from_str::<Value>(text.as_ref())?)),
-                    _ => Ok(InMemoryBody::Text(text.to_string())),
+                    Some("application/json") => {
+                        let value = serde_json::from_slice(&bytes)?;
+                        Ok(InMemoryBody::Json(value))
+                    }
+                    Some("application/octet-stream") => Ok(InMemoryBody::Bytes(bytes.to_vec())),
+                    _ if bytes.is_empty() => Ok(InMemoryBody::Empty),
+                    _ => {
+                        let text = String::from_utf8(bytes.to_vec())?;
+                        Ok(InMemoryBody::Text(text))
+                    },
                 }
             }
-        }
-    }
-
-    pub async fn into_text(self) -> Result<String> {
-        match self {
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let encoding = Encoding::for_label(&[]).unwrap_or(encoding_rs::UTF_8);
-                let (text, _, _) = encoding.decode(&bytes);
-                Ok(text.to_string())
-            },
-            Body::InMemory(InMemoryBody::Text(s)) => Ok(s),
-            Body::InMemory(InMemoryBody::Bytes(b)) => {
-                String::from_utf8(b).map_err(|e| e.into())
-            },
-            Body::InMemory(InMemoryBody::Json(value)) => {
-                let s = serde_json::to_string(&value)?;
-                Ok(s)
-            },
-            Body::InMemory(InMemoryBody::Empty) => Ok(String::new()),
-        }
-    }
-
-    pub async fn into_bytes(self) -> Result<Bytes> {
-        match self {
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
-                Ok(bytes)
-            },
-            Body::InMemory(InMemoryBody::Text(s)) => Ok(s.into_bytes().into()),
-            Body::InMemory(InMemoryBody::Bytes(b)) => Ok(b.into()),
-            Body::InMemory(InMemoryBody::Json(value)) => {
-                let s = serde_json::to_string(&value)?;
-                Ok(s.into_bytes().into())
-            },
-            Body::InMemory(InMemoryBody::Empty) => Ok(Bytes::new()),
-        }
-    }
-
-    pub async fn into_json<D: DeserializeOwned>(self) -> Result<D> {
-        match self {
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let encoding = Encoding::for_label(&[]).unwrap_or(encoding_rs::UTF_8);
-                let (text, _, _) = encoding.decode(&bytes);
-                serde_json::from_str(&text).map_err(|e| e.into())
-            },
-            Body::InMemory(InMemoryBody::Text(s)) => {
-                serde_json::from_str(&s).map_err(|e| e.into())
-            }
-            Body::InMemory(InMemoryBody::Bytes(b)) => {
-                let s = String::from_utf8(b)?;
-                serde_json::from_str(&s).map_err(|e| e.into())
-            }
-            Body::InMemory(InMemoryBody::Json(value)) => {
-                serde_json::from_value(value).map_err(|e| e.into())
-            },
-            Body::InMemory(InMemoryBody::Empty) => Err(crate::Error::JsonEncodingError(serde_json::Error::custom("empty body")))
         }
     }
 }
@@ -177,67 +199,6 @@ impl From<Body> for hyper::Body {
                 let b = serde_json::to_vec(&value).unwrap();
                 hyper::Body::from(b)
             },
-        }
-    }
-}
-
-
-impl HttpBody for Body {
-    type Data = Bytes;
-    type Error = crate::Error;
-
-    fn poll_data(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<std::result::Result<Self::Data, Self::Error>>> {
-        let body = self.get_mut();
-        match body {
-            Body::InMemory(InMemoryBody::Empty) => Poll::Ready(None),
-            Body::InMemory(InMemoryBody::Text(s)) => {
-                if s.is_empty() {
-                    Poll::Ready(None)
-                } else {
-                    let data = s.split_off(0);
-                    Poll::Ready(Some(Ok(Bytes::from(data))))
-                }
-            }
-            Body::InMemory(InMemoryBody::Bytes(b)) => {
-                if b.is_empty() {
-                    Poll::Ready(None)
-                } else {
-                    let data = b.split_off(0);
-                    Poll::Ready(Some(Ok(Bytes::from(data))))
-                }
-            }
-            Body::InMemory(InMemoryBody::Json(value)) => {
-                let data = serde_json::to_vec(value)?;
-                *body = Body::InMemory(InMemoryBody::Empty);
-                Poll::Ready(Some(Ok(Bytes::from(data))))
-            }
-            Body::Hyper(body) => Pin::new(body).poll_data(cx).map_err(|e| e.into()),
-        }
-    }
-
-    fn poll_trailers(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::result::Result<Option<HeaderMap>, Self::Error>> {
-        Poll::Ready(Ok(None))
-    }
-
-    fn is_end_stream(&self) -> bool {
-        use InMemoryBody::*;
-        match self {
-            Body::InMemory(Text(s)) => s.is_empty(),
-            Body::InMemory(Empty) => true,
-            Body::InMemory(Bytes(b)) => b.is_empty(),
-            Body::InMemory(Json(_)) => false,
-            Body::Hyper(b) => b.is_end_stream(),
-        }
-    }
-
-    fn size_hint(&self) -> SizeHint {
-        use InMemoryBody::*;
-        match self {
-            Body::InMemory(Text(s)) => SizeHint::with_exact(s.len() as u64),
-            Body::InMemory(Empty) => SizeHint::with_exact(0),
-            Body::InMemory(Bytes(b)) => SizeHint::with_exact(b.len() as u64),
-            Body::InMemory(Json(_)) => SizeHint::default(),
-            Body::Hyper(h) => h.size_hint(),
         }
     }
 }

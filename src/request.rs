@@ -8,13 +8,13 @@ use http::header::HeaderName;
 use http::uri::PathAndQuery;
 use hyper::{Method, Uri};
 use serde::{Deserialize, Deserializer, Serialize};
-use serde::de::{DeserializeOwned, Error};
+use serde::de::{Error};
 use serde::ser::SerializeMap;
 use serde::ser::Serializer;
 use serde_json::Value;
 
 use crate::{Body, Result, Response};
-use crate::body::InMemoryBody;
+use crate::body::{InMemoryBody};
 use crate::client::Client;
 use crate::middleware::Next;
 use crate::response::{InMemoryResponse};
@@ -23,19 +23,19 @@ pub type InMemoryRequest = Request<InMemoryBody>;
 
 #[derive(Debug)]
 pub struct Request<T = Body> {
-    pub method: Method,
-    pub url: Uri,
-    pub version: Version,
-    pub headers: HeaderMap,
-    pub body: T,
+    method: Method,
+    uri: Uri,
+    version: Version,
+    headers: HeaderMap,
+    body: T,
 }
 
 impl Serialize for InMemoryRequest {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let size = 3 + if self.body.is_empty() { 0 } else { 1 };
+        let size = 3 + usize::from(!self.body.is_empty());
         let mut map = serializer.serialize_map(Some(size))?;
         map.serialize_entry("method", &self.method.as_str())?;
-        map.serialize_entry("url", &self.url.to_string().as_str())?;
+        map.serialize_entry("url", &self.uri.to_string().as_str())?;
         map.serialize_entry("headers", &crate::http::SortedSerializableHeaders::from(&self.headers))?;
         if !self.body.is_empty() {
             map.serialize_entry("body", &self.body)?;
@@ -113,7 +113,7 @@ impl<'de> serde::de::Visitor<'de> for InMemoryRequestVisitor {
         let body = body.unwrap_or(InMemoryBody::Empty);
         Ok(InMemoryRequest {
             method,
-            url,
+            uri: url,
             version: Default::default(),
             headers: headers.into(),
             body,
@@ -123,7 +123,7 @@ impl<'de> serde::de::Visitor<'de> for InMemoryRequestVisitor {
 
 impl<T> Request<T> {
     pub fn host(&self) -> &str {
-        self.url.host().unwrap_or("")
+        self.uri.host().unwrap_or("")
     }
     pub fn version(&self) -> Version {
         self.version
@@ -134,11 +134,15 @@ impl<T> Request<T> {
     }
 
     pub fn uri(&self) -> &Uri {
-        &self.url
+        &self.uri
+    }
+
+    pub fn url(&self) -> &Uri {
+        &self.uri
     }
 
     pub fn path(&self) -> &str {
-        self.url.path()
+        self.uri.path()
     }
 
     pub fn body(&self) -> &T {
@@ -156,19 +160,76 @@ impl<T> Request<T> {
     pub fn headers_mut(&mut self) -> &HeaderMap {
         &mut self.headers
     }
+
+    pub fn set_url(mut self, url: Uri) -> Self {
+        self.uri = url;
+        self
+    }
 }
 
 impl Request {
     pub async fn into_memory(self) -> Result<InMemoryRequest> {
-        let content_type = self.headers.get(hyper::header::CONTENT_TYPE);
-        let body = self.body.into_memory(content_type).await?;
+        let body = self.body.into_memory().await?;
         Ok(Request {
             method: self.method,
-            url: self.url,
+            uri: self.uri,
             version: self.version,
             headers: self.headers,
             body,
         })
+    }
+
+    pub fn build_post(url: &str) -> RequestBuilder<(), InMemoryBody> {
+        RequestBuilder::new(&(), Method::POST, Uri::from_str(url).expect("Invalid URL"))
+    }
+
+    pub fn build_get(url: &str) -> RequestBuilder<(), InMemoryBody> {
+        RequestBuilder::new(&(), Method::GET, Uri::from_str(url).expect("Invalid URL"))
+    }
+
+    pub fn build_patch(url: &str) -> RequestBuilder<(), InMemoryBody> {
+        RequestBuilder::new(&(), Method::PATCH, Uri::from_str(url).expect("Invalid URL"))
+    }
+
+    pub fn build_delete(url: &str) -> RequestBuilder<(), InMemoryBody> {
+        RequestBuilder::new(&(), Method::DELETE, Uri::from_str(url).expect("Invalid URL"))
+    }
+}
+
+impl InMemoryRequest {
+    pub fn test(method: &str, url: &str) -> Self {
+        Self {
+            method: Method::from_str(&method.to_uppercase()).unwrap(),
+            uri: Uri::from_str(url).unwrap(),
+            version: Default::default(),
+            headers: Default::default(),
+            body: InMemoryBody::Empty,
+        }
+    }
+
+    pub fn set_body(mut self, body: InMemoryBody) -> Self {
+        self.body = body;
+        self
+    }
+
+    pub fn set_header(mut self, key: impl Into<HeaderName>, value: impl Into<HeaderValue>) -> Self {
+        self.headers.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn set_headers(mut self, headers: HeaderMap) -> Self {
+        self.headers = headers;
+        self
+    }
+
+    pub fn set_version(mut self, version: Version) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn set_method(mut self, method: Method) -> Self {
+        self.method = method;
+        self
     }
 }
 
@@ -176,7 +237,7 @@ impl Clone for InMemoryRequest {
     fn clone(&self) -> Self {
         Self {
             method: self.method.clone(),
-            url: self.url.clone(),
+            uri: self.uri.clone(),
             version: self.version,
             headers: self.headers.clone(),
             body: self.body.clone(),
@@ -190,16 +251,16 @@ impl std::hash::Hash for Request<InMemoryBody> {
         // method
         self.method.hash(state);
         // url, contains query params.
-        self.url.hash(state);
+        self.uri.hash(state);
         // headers, sorted
-        let mut sorted = self.headers().iter()
-            .map(|(k, v)| (k.as_str(), v.as_bytes()))
-            .collect::<Vec<(&str, &[u8])>>();
-        sorted.sort();
-        sorted.into_iter().for_each(|(k, v)| {
-            k.hash(state);
-            v.hash(state);
-        });
+        // let mut sorted = self.headers().iter()
+        //     .map(|(k, v)| (k.as_str(), v.as_bytes()))
+        //     .collect::<Vec<(&str, &[u8])>>();
+        // sorted.sort();
+        // sorted.into_iter().for_each(|(k, v)| {
+        //     k.hash(state);
+        //     v.hash(state);
+        // });
         // body
         self.body.hash(state);
     }
@@ -207,9 +268,10 @@ impl std::hash::Hash for Request<InMemoryBody> {
 
 impl PartialEq<Self> for Request<InMemoryBody> {
     fn eq(&self, other: &Self) -> bool {
-        if !(self.method == other.method &&
-            self.url == other.url &&
-            self.headers == other.headers) {
+        if !(self.method == other.method
+            && self.uri == other.uri
+            // && self.headers == other.headers
+        ) {
             return false;
         }
         match (&self.body, &other.body) {
@@ -229,7 +291,7 @@ impl From<InMemoryRequest> for Request {
     fn from(val: InMemoryRequest) -> Self {
         Request {
             method: val.method,
-            url: val.url,
+            uri: val.uri,
             version: val.version,
             headers: val.headers,
             body: val.body.into(),
@@ -242,7 +304,7 @@ impl Into<hyper::Request<hyper::Body>> for Request {
         let mut builder = http::Request::builder()
             .version(self.version)
             .method(self.method)
-            .uri(self.url);
+            .uri(self.uri);
         for (key, value) in self.headers.into_iter().filter_map(|(k, v)| Some((k?, v))) {
             builder = builder.header(key, value);
         }
@@ -254,19 +316,107 @@ impl Into<hyper::Request<hyper::Body>> for Request {
 
 
 #[derive(Debug)]
-pub struct RequestBuilder<'a> {
-    client: &'a Client,
+pub struct RequestBuilder<'a, C = Client, B = Body> {
+    client: &'a C,
 
-    version: Version,
-    method: Method,
-    uri: Uri,
-    headers: HeaderMap,
-    body: Option<Body>,
+    pub version: Version,
+    pub method: Method,
+    pub uri: Uri,
+    pub headers: HeaderMap,
+    pub body: Option<B>,
+}
+
+impl<'a, C> RequestBuilder<'a, C, InMemoryBody> {
+    /// Overwrite the current body with the provided JSON object.
+    pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
+        self.body = Some(InMemoryBody::Json(serde_json::to_value(obj).unwrap()));
+        self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("application/json"));
+        self
+    }
+
+    /// Add the provided JSON object to the current body.
+    pub fn json<S: Serialize>(mut self, obj: S) -> Self {
+        match self.body {
+            None => {
+                self.set_json(obj)
+            }
+            Some(InMemoryBody::Json(Value::Object(ref mut body))) => {
+                if let Value::Object(obj) = serde_json::to_value(obj).unwrap() {
+                    body.extend(obj.into_iter());
+                } else {
+                    panic!("Tried to push a non-object to a json body.");
+                }
+                self
+            }
+            _ => panic!("Tried to call .json() on a non-json body. Use .set_json if you need to force a json body."),
+        }
+    }
+
+    /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
+    pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
+        self.body = Some(InMemoryBody::Bytes(bytes));
+        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
+        self
+    }
+
+    /// Sets content-type to `text/plain` and the body to the supplied text.
+    pub fn text(mut self, text: String) -> Self {
+        self.body = Some(InMemoryBody::Text(text));
+        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
+        self
+    }
+}
+
+impl<'a> RequestBuilder<'a> {
+    pub async fn send(self) -> Result<Response> {
+        let next = Next {
+            client: self.client,
+            middlewares: self.client.middlewares.as_slice(),
+        };
+        let request = self.build();
+        next.run(request).await
+    }
+
+    /// Normally, we have to `await` the body as well. This convenience method makes the body
+    /// available immediately.
+    pub fn send_awaiting_body(self) -> BoxFuture<'a, Result<InMemoryResponse, crate::Error<InMemoryBody>>> {
+        Box::pin(async move {
+            let res = self.send().await;
+            let res = match res {
+                Ok(res) => res,
+                Err(e) => return Err(e.into_memory().await),
+            };
+            let (parts, body) = res.into_parts();
+            let body = match body.into_memory().await {
+                Ok(body) => body,
+                Err(e) => return Err(e.into()),
+            };
+            let res = Response::from_parts(parts, body);
+            if res.status().is_client_error() || res.status().is_server_error() {
+                Err(crate::Error::HttpError(res))
+            } else {
+                Ok(res)
+            }
+        })
+    }
 }
 
 
-impl<'a> RequestBuilder<'a> {
-    pub fn new(client: &'a Client, method: Method, uri: Uri) -> Self {
+impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
+    pub fn build(self) -> Request<B> {
+        Request {
+            method: self.method,
+            uri: self.uri,
+            version: self.version,
+            headers: self.headers,
+            body: self.body.unwrap_or_default(),
+        }
+    }
+}
+
+impl<'a, C, B> RequestBuilder<'a, C, B> {
+    pub fn new(client: &'a C, method: Method, uri: Uri) -> RequestBuilder<'a, C, B> {
         RequestBuilder {
             client,
             version: Default::default(),
@@ -277,23 +427,19 @@ impl<'a> RequestBuilder<'a> {
         }
     }
 
-    pub async fn send(self) -> Result<Response> {
-        let next = Next {
-            client: self.client,
-            middlewares: self.client.middlewares.as_slice(),
-        };
-        let request = self.build();
-        next.run(request).await
+    pub fn method(mut self, method: Method) -> Self {
+        self.method = method;
+        self
     }
 
-    pub fn build(self) -> Request {
-        Request {
-            method: self.method,
-            url: self.uri,
-            version: self.version,
-            headers: self.headers,
-            body: self.body.unwrap_or(Body::empty()),
-        }
+    pub fn url(mut self, uri: &str) -> Self {
+        self.uri = Uri::from_str(uri).expect("Invalid URI");
+        self
+    }
+
+    pub fn set_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
+        self.headers = HeaderMap::new();
+        self.headers(headers)
     }
 
     pub fn headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
@@ -312,7 +458,7 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    pub fn push_cookie(mut self, key: &str, value: &str) -> Self {
+    pub fn cookie(mut self, key: &str, value: &str) -> Self {
         self.headers.insert(
             hyper::header::COOKIE,
             HeaderValue::from_str(&format!("{}={}", key, value)).unwrap(),
@@ -344,42 +490,6 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Overwrite the current body with the provided JSON object.
-    pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
-        self.body = Some(Body::InMemory(InMemoryBody::Json(serde_json::to_value(obj).unwrap())));
-        if !self.headers.contains_key(&hyper::header::CONTENT_TYPE) {
-            self.headers.insert(
-                hyper::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json; charset=utf-8"),
-            );
-        }
-        if !self.headers.contains_key(&hyper::header::ACCEPT) {
-            self.headers.insert(
-                hyper::header::ACCEPT,
-                HeaderValue::from_static("application/json"),
-            );
-        }
-        self
-    }
-
-    /// Add the provided JSON object to the current body.
-    pub fn json<S: Serialize>(mut self, obj: S) -> Self {
-        match self.body {
-            None => {
-                self.set_json(obj)
-            }
-            Some(Body::InMemory(InMemoryBody::Json(Value::Object(ref mut body)))) => {
-                if let Value::Object(obj) = serde_json::to_value(obj).unwrap() {
-                    body.extend(obj.into_iter());
-                } else {
-                    panic!("Tried to push a non-object to a json body.");
-                }
-                self
-            }
-            _ => panic!("Tried to call .json() on a non-json body. Use .set_json if you need to force a json body."),
-        }
-    }
-
     /// Overwrite the query with the provided value.
     pub fn set_query<S: Serialize>(mut self, obj: S) -> Self {
         let query = {
@@ -407,10 +517,6 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    pub fn uri(&self) -> &Uri {
-        &self.uri
-    }
-
     /// Add a url query parameter, but keep existing parameters.
     /// # Examples
     /// ```
@@ -432,26 +538,6 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
-    pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
-        self.body = Some(Body::InMemory(InMemoryBody::Bytes(bytes)));
-        self.headers.insert(
-            hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static("application/octet-stream"),
-        );
-        self
-    }
-
-    /// Sets content-type to `text/plain` and the body to the supplied text.
-    pub fn text(mut self, text: String) -> Self {
-        self.body = Some(Body::InMemory(InMemoryBody::Text(text)));
-        self.headers.insert(
-            hyper::header::CONTENT_TYPE,
-            HeaderValue::from_static("text/plain"),
-        );
-        self
-    }
-
     pub fn content_type(mut self, content_type: &str) -> Self {
         self.headers.insert(
             hyper::header::CONTENT_TYPE,
@@ -460,50 +546,24 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    /// Does not set content-type!
-    pub fn set_body(mut self, body: Body) -> Self {
+    /// Warning: Does not set content-type!
+    pub fn body(mut self, body: B) -> Self {
         self.body = Some(body);
         self
     }
 
-    /// Normally, we have to `await` the body as well. This convenience method makes the body
-    /// available immediately.
-    pub fn send_awaiting_body<T: DeserializeOwned>(self) -> BoxFuture<'a, std::result::Result<Response<T>, crate::Error<InMemoryBody>>> {
-        Box::pin(async move {
-            let res = self.send().await;
-            let res = match res {
-                Ok(res) => res,
-                Err(e) => return Err(e.into_memory().await),
-            };
-            let content_type = res.headers.get(hyper::header::CONTENT_TYPE);
-            let body = res.body.into_memory(content_type).await?;
-            if res.status.is_client_error() || res.status.is_server_error() {
-                Err(crate::Error::HttpError(InMemoryResponse {
-                    version: res.version,
-                    status: res.status,
-                    headers: res.headers,
-                    body,
-                }))
-            } else {
-                match body {
-                    InMemoryBody::Json(value) => {
-                        Ok(Response {
-                            body: serde_json::from_value(value)?,
-                            headers: res.headers,
-                            status: res.status,
-                            version: res.version,
-                        })
-                    }
-                    _ => {
-                        Err(crate::Error::JsonEncodingError(serde_json::Error::custom("Received success code, but expected JSON response.")))
-                    }
-                }
-            }
+    pub fn try_build(self) -> Result<Request<B>> {
+        Ok(Request {
+            method: self.method,
+            uri: self.uri,
+            version: self.version,
+            headers: self.headers,
+            body: self.body.ok_or_else(|| crate::Error::Generic("No body set".to_string()))?,
         })
     }
 }
 
-impl<'a> IntoFuture for RequestBuilder<'a> {
+impl<'a> IntoFuture for RequestBuilder<'a, Client> {
     type Output = Result<Response>;
     type IntoFuture = BoxFuture<'a, Self::Output>;
 
@@ -517,10 +577,6 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::collections::HashMap;
     use std::hash::{Hash, Hasher};
-    use hyper::header::{HeaderValue};
-
-    use http::Method;
-
     use super::*;
 
     #[test]
@@ -531,13 +587,8 @@ mod tests {
             b: u32,
         }
         let data = Foobar { a: 1, b: 2 };
-        let r1 = InMemoryRequest {
-            method: Method::POST,
-            url: Uri::from_str("http://example.com/").unwrap(),
-            version: Default::default(),
-            headers: HeaderMap::new(),
-            body: InMemoryBody::Json(serde_json::to_value(&data).unwrap()),
-        };
+        let r1 = InMemoryRequest::test("post", "http://example.com/")
+            .set_body(InMemoryBody::Json(serde_json::to_value(&data).unwrap()));
         let s = serde_json::to_string_pretty(&r1).unwrap();
         let r2: InMemoryRequest = serde_json::from_str(&s).unwrap();
         assert_eq!(r1, r2);
@@ -551,26 +602,14 @@ mod tests {
             b: u32,
         }
         let data = Foobar { a: 1, b: 2 };
-        let r1 = InMemoryRequest {
-            method: Method::POST,
-            url: Uri::from_str("http://example.com/").unwrap(),
-            version: Default::default(),
-            headers: HeaderMap::from_iter(vec![(
-                hyper::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            )].into_iter()),
-            body: InMemoryBody::Json(serde_json::to_value(&data).unwrap()),
-        };
-        let r2 = InMemoryRequest {
-            method: Method::POST,
-            url: Uri::from_str("http://example.com/").unwrap(),
-            version: Default::default(),
-            headers: HeaderMap::from_iter(vec![(
-                hyper::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            )].into_iter()),
-            body: InMemoryBody::Json(serde_json::to_value(&data).unwrap()),
-        };
+        let r1 = Request::build_post("https://example.com/")
+            .header("content-type", "application/json")
+            .json(&data)
+            .build();
+        let r2 = Request::build_post("https://example.com/")
+            .header("content-type", "application/json")
+            .json(&data)
+            .build();
         assert_eq!(r1, r2);
         let h1 = {
             let mut s = DefaultHasher::new();
@@ -587,19 +626,18 @@ mod tests {
 
     #[test]
     fn test_push_query() {
-        let client = Client::new();
-        let mut r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap());
+        let mut r1 = Request::build_get("https://example.com/foo/bar");
         r1 = r1.query("a", "b");
-        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b");
+        assert_eq!(r1.uri.to_string(), "https://example.com/foo/bar?a=b");
         r1 = r1.query("c", "d");
-        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d");
+        assert_eq!(r1.uri.to_string(), "https://example.com/foo/bar?a=b&c=d");
     }
 
     #[test]
     fn test_query() {
-        let client = Client::new();
-        let r1 = RequestBuilder::new(&client, Method::GET, "http://example.com/foo/bar".parse().unwrap())
+        let r1 = Request::build_get("http://example.com/foo/bar")
             .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
+        assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
     }
 }
