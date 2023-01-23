@@ -5,7 +5,7 @@ use hyper::client::HttpConnector;
 use hyper::{Uri};
 use hyper_rustls::HttpsConnector;
 use once_cell::sync::OnceCell;
-use crate::request::RequestBuilder;
+use crate::RequestBuilder;
 use crate::middleware::Middleware;
 use crate::{Error, Request, Response};
 

@@ -7,6 +7,7 @@ use serde_json::Value;
 
 use crate::{InMemoryResult, Result};
 use crate::error::ProtocolError;
+use crate::sanitize::sanitize_value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -53,7 +54,19 @@ impl TryInto<Bytes> for InMemoryBody {
 
 
 impl InMemoryBody {
-    pub fn empty() -> Self {
+
+    pub fn new_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        InMemoryBody::Bytes(bytes.into())
+    }
+    pub fn new_text(text: impl Into<String>) -> Self {
+        InMemoryBody::Text(text.into())
+    }
+
+    pub fn new_json(value: impl Serialize) -> Self {
+        InMemoryBody::Json(serde_json::to_value(value).unwrap())
+    }
+
+    pub fn new_empty() -> Self {
         InMemoryBody::Empty
     }
 
@@ -132,18 +145,9 @@ impl Default for Body {
 }
 
 impl Body {
-    pub fn bytes(bytes: impl Into<Vec<u8>>) -> Self {
-        Body::InMemory(InMemoryBody::Bytes(bytes.into()))
-    }
-    pub fn text(text: impl Into<String>) -> Self {
-        Body::InMemory(InMemoryBody::Text(text.into()))
-    }
-    pub fn json(value: impl Serialize) -> Self {
-        Body::InMemory(InMemoryBody::Json(serde_json::to_value(value).unwrap()))
-    }
 
-    pub fn empty() -> Self {
-        Body::InMemory(InMemoryBody::Empty)
+    pub fn new_empty() -> Self {
+        Body::InMemory(InMemoryBody::new_empty())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -198,5 +202,19 @@ impl From<Body> for hyper::Body {
                 hyper::Body::from(b)
             },
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serialization() {
+        let body = InMemoryBody::new_json(serde_json::json!({
+            "foo": "bar"
+        }));
+        assert_eq!(1, 0);
     }
 }

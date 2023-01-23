@@ -1,15 +1,17 @@
-use http::{Version, StatusCode, HeaderMap};
+mod memory;
+
+use http::{HeaderMap, StatusCode, Version};
 use hyper::body::Bytes;
 
 use crate::body::{Body, InMemoryBody};
 use crate::{InMemoryResult, Result};
-use serde::{Serialize, Deserialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 use serde::de::{DeserializeOwned, Error};
 use serde::ser::SerializeMap;
 use crate::http::SortedSerializableHeaders;
 
-pub type InMemoryResponse = Response<InMemoryBody>;
+pub use memory::*;
 
 #[derive(Debug)]
 pub struct Response<T = Body> {

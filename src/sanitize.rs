@@ -6,7 +6,14 @@ static REGEX: OnceCell<Regex> = OnceCell::new();
 
 fn regex() -> &'static Regex {
     REGEX.get_or_init(|| {
-        Regex::new(r#"(?i)((\b|[-_])secret(\b|[-_])|(\b|[-_])key(\b|[-_])|(\b|[-_])pkey(\b|[-_])|(\b|[-_])session(\b|[-_])|(\b|[-_])sessid(\b|[-_]))"#).unwrap()
+        let s = [
+            "secret",
+            "key",
+            "pkey",
+            "session",
+            "password"
+        ].map(|s| format!(r#"(\b|[-_]){s}(\b|[-_])"#)).join("|");
+        Regex::new(&format!(r#"(?i)({s})"#)).unwrap()
     })
 }
 
@@ -17,6 +24,7 @@ pub fn should_sanitize(key: &str) -> bool {
         "authorization" => true,
         "cookie" => true,
         "set-cookie" => true,
+        "password" => true,
         _ if regex().is_match(key) => true,
         _ => false,
     }
