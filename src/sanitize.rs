@@ -14,7 +14,9 @@ pub static SANITIZED_VALUE: &str = "**********";
 
 pub fn should_sanitize(key: &str) -> bool {
     match key {
-        "Authorization" => true,
+        "authorization" => true,
+        "cookie" => true,
+        "set-cookie" => true,
         _ if regex().is_match(key) => true,
         _ => false,
     }

@@ -62,7 +62,7 @@ impl RequestRecorder {
 
     pub fn record_response(&self, request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
         let path = self.filepath_for_request(&request);
-        println!("Recording response to {}", path.display());
+        // println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
         let mut map = if let Ok(f) = fs::File::open(&path) {
             let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
@@ -71,7 +71,7 @@ impl RequestRecorder {
         } else {
             HashMap::new()
         };
-        println!("Recording response: {:?}", response);
+        // println!("Recording response: {:?}", response);
         if let InMemoryBody::Json(value) = &mut response.body {
             sanitize_value(value);
         }

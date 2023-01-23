@@ -14,6 +14,7 @@ doctest = false
 [dependencies]
 async-trait = "0.1.52"
 basic-cookies = "0.1.4"
+cookie = { version = "0.17.0", features = ["percent-encode"] }
 encoding_rs = "0.8.30"
 futures = "0.3.25"
 http = "0.2.6"
