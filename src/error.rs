@@ -5,7 +5,7 @@ use http::StatusCode;
 use crate::{Body, InMemoryResponse};
 use crate::body::InMemoryBody;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl Error {
                     headers: r.headers,
                     body,
                 })
-            },
+            }
             Error::Generic(e) => Error::Generic(e),
             Error::TooManyRedirectsError => Error::TooManyRedirectsError,
             Error::HttpProtocolError(h) => Error::HttpProtocolError(h),

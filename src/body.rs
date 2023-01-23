@@ -14,6 +14,7 @@ use crate::error::ProtocolError;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum InMemoryBody {
     Empty,
     Bytes(Vec<u8>),
@@ -89,7 +90,7 @@ impl Body {
         }
     }
 
-    pub async fn into_memory(self, content_type: Option<&HeaderValue>) -> std::result::Result<InMemoryBody, ProtocolError> {
+    pub async fn into_memory(self, content_type: Option<&HeaderValue>) -> Result<InMemoryBody, ProtocolError> {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
