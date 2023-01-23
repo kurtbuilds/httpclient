@@ -68,7 +68,7 @@ impl RequestRecorder {
         // println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
         #[allow(clippy::mutable_key_type)]
-        let mut map = if let Ok(f) = fs::File::open(&path) {
+            let mut map = if let Ok(f) = fs::File::open(&path) {
             let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
             HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)))
         } else {
