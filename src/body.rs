@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde::de::{DeserializeOwned, Error};
 use serde_json::Value;
 
-use crate::Result;
+use crate::{InMemoryResult, Result};
 use crate::error::ProtocolError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,7 +72,7 @@ impl InMemoryBody {
         self.try_into()
     }
 
-    pub fn json<T: DeserializeOwned>(self) -> Result<T> {
+    pub fn json<T: DeserializeOwned>(self) -> InMemoryResult<T> {
         match self {
             InMemoryBody::Empty => Err(crate::Error::JsonEncodingError(serde_json::Error::custom("Empty body"))),
             InMemoryBody::Bytes(b) => {

@@ -552,13 +552,13 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
         self
     }
 
-    pub fn try_build(self) -> Result<Request<B>> {
+    pub fn try_build(self) -> Result<Request<B>, crate::Error> {
         Ok(Request {
             method: self.method,
             uri: self.uri,
             version: self.version,
             headers: self.headers,
-            body: self.body.ok_or_else(|| crate::Error::Generic("No body set".to_string()))?,
+            body: self.body.ok_or_else(|| crate::Error::<Body>::Generic("No body set".to_string()))?,
         })
     }
 }

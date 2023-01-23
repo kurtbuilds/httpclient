@@ -6,6 +6,8 @@ use crate::{Body, InMemoryResponse};
 use crate::body::InMemoryBody;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type InMemoryError = Error<InMemoryBody>;
+pub type InMemoryResult<T> = Result<T, InMemoryError>;
 
 
 #[derive(Debug)]
@@ -57,6 +59,20 @@ impl Error {
                 };
                 Error::HttpError(InMemoryResponse::from_parts(parts, body))
             }
+            Error::Generic(e) => Error::Generic(e),
+            Error::TooManyRedirectsError => Error::TooManyRedirectsError,
+            Error::HttpProtocolError(h) => Error::HttpProtocolError(h),
+            Error::Utf8Error(u) => Error::Utf8Error(u),
+            Error::JsonEncodingError(e) => Error::JsonEncodingError(e),
+            Error::IoError(i) => Error::IoError(i),
+        }
+    }
+}
+
+impl From<InMemoryError> for Error {
+    fn from(value: InMemoryError) -> Self {
+        match value {
+            Error::HttpError(r) => Error::HttpError(r.into()),
             Error::Generic(e) => Error::Generic(e),
             Error::TooManyRedirectsError => Error::TooManyRedirectsError,
             Error::HttpProtocolError(h) => Error::HttpProtocolError(h),

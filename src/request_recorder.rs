@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use crate::{InMemoryRequest, InMemoryResponse};
+use crate::{InMemoryRequest, InMemoryResponse, InMemoryResult};
 use crate::body::InMemoryBody;
 use crate::sanitize::sanitize_value;
 
@@ -60,7 +60,7 @@ impl RequestRecorder {
         path
     }
 
-    pub fn record_response(&self, request: InMemoryRequest, mut response: InMemoryResponse) -> Result<(), crate::Error> {
+    pub fn record_response(&self, request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
         let path = self.filepath_for_request(&request);
         println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
@@ -72,13 +72,13 @@ impl RequestRecorder {
             HashMap::new()
         };
         println!("Recording response: {:?}", response);
-        if let InMemoryBody::Json(value)  = &mut response.body {
+        if let InMemoryBody::Json(value) = &mut response.body {
             sanitize_value(value);
         }
         map.insert(request, response);
         let f = fs::File::create(&path)?;
         let res = map.into_iter().map(|(k, v)| RequestResponsePair { request: k, response: v }).collect::<Vec<_>>();
-        serde_json::to_writer_pretty(f, &res).map_err(crate::Error::from)?;
+        serde_json::to_writer_pretty(f, &res)?;
         Ok(())
     }
 

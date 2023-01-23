@@ -2,7 +2,7 @@ use http::{Version, StatusCode, HeaderMap};
 use hyper::body::Bytes;
 
 use crate::body::{Body, InMemoryBody};
-use crate::{Result};
+use crate::{InMemoryResult, Result};
 use serde::{Serialize, Deserialize, Serializer};
 
 use serde::de::{DeserializeOwned, Error};
@@ -110,7 +110,7 @@ impl InMemoryResponse {
         self.body.text()
     }
 
-    pub fn json<U: DeserializeOwned>(self) -> Result<U> {
+    pub fn json<U: DeserializeOwned>(self) -> InMemoryResult<U> {
         self.body.json()
     }
 
@@ -143,7 +143,7 @@ impl Response {
 
     pub async fn json<U: DeserializeOwned>(self) -> Result<U> {
         let body = self.body.into_memory().await?;
-        body.json()
+        body.json().map_err(Into::into)
     }
 
     /// Get body as bytes.

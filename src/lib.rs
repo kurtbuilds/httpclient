@@ -8,7 +8,7 @@ pub use request::{Request, RequestBuilder, InMemoryRequest};
 pub use response::{Response, InMemoryResponse};
 
 pub use crate::client::Client;
-pub use crate::error::{Error, Result};
+pub use crate::error::{Error, Result, InMemoryError, InMemoryResult};
 
 mod client;
 mod error;
