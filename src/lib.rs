@@ -1,14 +1,14 @@
 
 
-pub use http::{Method, Uri};
+pub use ::http::{Method, Uri};
 
 pub use body::Body;
 pub use middleware::Middleware;
-pub use request::{Request, RequestBuilder};
-pub use response::Response;
+pub use request::{Request, RequestBuilder, InMemoryRequest};
+pub use response::{Response, InMemoryResponse};
 
 pub use crate::client::Client;
-pub use crate::error::Error;
+pub use crate::error::{Error, Result};
 
 mod client;
 mod error;
@@ -17,5 +17,5 @@ mod request;
 mod response;
 pub mod middleware;
 mod body;
-mod headers;
+mod http;
 

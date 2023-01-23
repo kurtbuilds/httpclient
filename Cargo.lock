@@ -361,7 +361,6 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "thiserror",
  "tokio",
  "urlencoding",
  "walkdir",

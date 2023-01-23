@@ -1,13 +1,11 @@
 use std::str::FromStr;
-use crate::Error;
+use crate::{Error, Response};
 
-use crate::response::Response;
 use async_trait::async_trait;
 use http::Uri;
 use crate::client::Client;
 use crate::request::{Request};
 use crate::request_recorder::RequestRecorder;
-
 
 #[derive(Copy, Clone)]
 pub struct Next<'a> {
@@ -24,7 +22,7 @@ impl Next<'_> {
             };
             middleware.handle(request, next).await
         } else {
-            self.client.send(request).await
+            self.client.send_request(request).await
         }
     }
 }
@@ -49,10 +47,10 @@ impl RecorderMiddleware {
         }
     }
 
-    pub fn with_mode(mode: RecorderMode) -> Self {
+    pub fn mode(self, mode: RecorderMode) -> Self {
         Self {
             mode,
-            request_recorder: RequestRecorder::new(),
+            request_recorder: self.request_recorder,
         }
     }
 
@@ -68,8 +66,11 @@ impl RecorderMiddleware {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RecorderMode {
+    /// Default. Will check for recordings, but will make the request if no recording is found.
     RecordOrRequest,
+    /// Always make the request.
     IgnoreRecordings,
+    /// Always use recordings. Fail if no recording is found.
     ForceNoRequests,
 }
 
@@ -96,21 +97,20 @@ impl RecorderMode {
 #[async_trait]
 impl Middleware for RecorderMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let request = request.into_infallible_cloneable().await?;
+        let request = request.into_memory().await?;
         if self.should_lookup() {
-            let recorded = self.request_recorder.recorded_response(&request);
-            if recorded.is_some() {
-                return Ok(recorded.unwrap());
+            let recorded = self.request_recorder.get_response(&request);
+            if let Some(recorded) = recorded {
+                return Ok(recorded.into());
             }
         }
         if !self.should_request() {
             return Err(Error::Generic("No recording found".to_string()));
         }
-        let mut response = next.run(request.try_clone().unwrap()).await;
-        if response.is_ok() {
-            response = self.request_recorder.record_response(request, response.unwrap()).await;
-        }
-        response
+        let response = next.run(request.clone().into()).await?;
+        let response = response.into_memory().await?;
+        let response = self.request_recorder.record_response(request, response).await?;
+        Ok(response.into())
     }
 }
 
@@ -120,9 +120,9 @@ pub struct RetryMiddleware {}
 impl Middleware for RetryMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let mut i = 0usize;
-        let request = request.into_infallible_cloneable().await?;
+        let request = request.into_memory().await?;
         loop {
-            match next.run(request.try_clone().unwrap()).await {
+            match next.run(request.clone().into()).await {
                 Ok(response) => return Ok(response),
                 Err(err) => {
                     if i == 3 {
@@ -146,7 +146,7 @@ impl LoggerMiddleware {
 #[async_trait]
 impl Middleware for LoggerMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let url = request.url().to_string();
+        let url = request.url.to_string();
         println!("Request: {:?}", request);
         let res = next.run(request).await;
         println!("Response to {}: {:?}", url, res);
@@ -162,7 +162,8 @@ impl FollowRedirectsMiddleware {
     }
 }
 
-fn fix_url(redirect_url: &str, original: &Uri) -> Uri {
+/// Given an original Url, redirect to the new path.
+fn fix_url(original: &Uri, redirect_url: &str) -> Uri {
     let url = Uri::from_str(redirect_url).unwrap();
     let mut parts = url.into_parts();
     if parts.authority.is_none() {
@@ -177,20 +178,19 @@ fn fix_url(redirect_url: &str, original: &Uri) -> Uri {
 #[async_trait]
 impl Middleware for FollowRedirectsMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let request = request.into_infallible_cloneable().await?;
-        let mut res = next.run(request.try_clone().unwrap()).await?;
+        let request = request.into_memory().await?;
+        let mut res = next.run(request.clone().into()).await?;
         let mut allowed_redirects = 10;
-        while res.status().is_redirection() {
+        while res.status.is_redirection() {
             if allowed_redirects == 0 {
-                return Err(Error::Generic("Too many redirects".to_string()));
+                return Err(Error::TooManyRedirectsError);
             }
-            let url = res.headers().get(http::header::LOCATION).unwrap().to_str().unwrap();
-            let url = fix_url(url, request.url());
-            let (mut parts, body) = request.try_clone().unwrap().into_parts();
-            parts.uri = url;
-            let request = Request::from_parts(parts, body);
+            let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
+            let url = fix_url(&request.url, redirect);
+            let mut request = request.clone();
+            request.url = url;
             allowed_redirects -= 1;
-            res = next.run(request).await?;
+            res = next.run(request.into()).await?;
         }
         Ok(res)
     }
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_relative_route() {
         let original = Uri::from_str("https://www.google.com/").unwrap();
-        let url = fix_url("/test", &original);
+        let url = fix_url(&original, "/test");
         assert_eq!(url.to_string(), "https://www.google.com/test");
     }
 }

@@ -7,9 +7,7 @@ use hyper_rustls::HttpsConnector;
 use once_cell::sync::OnceCell;
 use crate::request::RequestBuilder;
 use crate::middleware::Middleware;
-use crate::response::Response;
-use crate::middleware::Next;
-use crate::{Error, Request};
+use crate::{Error, Request, Response};
 
 
 static HTTPS_CONNECTOR: OnceCell<HttpsConnector<HttpConnector>> = OnceCell::new();
@@ -107,15 +105,9 @@ impl Client {
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
     }
 
-    pub async fn execute(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
-        let next = Next {
-            client: self,
-            middlewares: self.middlewares.as_slice(),
-        };
-        let request = builder.build();
-
-        next.run(request).await
-    }
+    // pub(crate) async fn start_request(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
+    //
+    // }
 
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = Vec::new();
@@ -132,10 +124,11 @@ impl Client {
         self
     }
 
-    /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
-    /// `execute` is the pub method that additionally runs middlewares.
-    pub(crate) async fn send(&self, request: Request) -> Result<Response, Error> {
-        Ok(Response::from(self.inner.request(request.into_inner()).await?))
+    // /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
+    // /// `execute` is the pub method that additionally runs middlewares.
+    pub(crate) async fn send_request(&self, request: Request) -> Result<Response, Error> {
+        let res = self.inner.request(request.into()).await?;
+        Ok(Response::from(res))
     }
 }
 
@@ -153,7 +146,7 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(RecorderMiddleware::with_mode(RecorderMode::ForceNoRequests));
+            .with_middleware(RecorderMiddleware::new().mode(RecorderMode::ForceNoRequests));
 
         let res = serde_json::to_value(client.get("/")
             .send()

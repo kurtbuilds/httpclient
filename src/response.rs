@@ -1,207 +1,187 @@
-use std::borrow::Cow;
-
-use std::fmt;
-use hyper::{StatusCode};
-use encoding_rs::Encoding;
+use http::{Version, StatusCode, HeaderMap};
 use hyper::body::Bytes;
 
-use crate::body::{Body, NonStreamingBody};
-use serde::{Serialize, Deserialize, Deserializer};
+use crate::body::{Body, InMemoryBody};
+use crate::{Result};
+use serde::{Serialize, Deserialize, Serializer};
+
+use serde::de::{DeserializeOwned, Error};
 use serde::ser::SerializeMap;
+use crate::http::SortedSerializableHeaders;
 
-use serde::de::{MapAccess};
-use crate::headers::{AddHeaders, SortedHeaders};
+pub type InMemoryResponse = Response<InMemoryBody>;
 
-#[derive(Debug, Serialize)]
-#[serde(transparent)]
-pub struct Response(
-    #[serde(serialize_with = "serialize_response")]
-    hyper::Response<Body>
-);
+#[derive(Debug)]
+pub struct Response<T = Body> {
+    pub version: Version,
+    pub status: StatusCode,
+    pub headers: HeaderMap,
+    pub body: T,
+}
 
 
-impl Response {
-    pub fn try_clone(&self) -> Result<Response, crate::Error> {
-        let builder = hyper::Response::builder()
-            .version(self.0.version())
-            .headers(self.0.headers())
-            .status(self.0.status());
-        Ok(Response(builder.body(self.0.body().try_clone()?)?))
-    }
-
-    pub fn status(&self) -> StatusCode {
-        self.0.status()
-    }
-
-    pub fn headers(&self) -> &hyper::HeaderMap {
-        self.0.headers()
-    }
-
-    pub fn cookie(&self, name: &str) -> Option<&str> {
-        self.0.headers().get("cookie")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| {
-                let cookies = basic_cookies::Cookie::parse(v).ok()?;
-                cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
-            })
-    }
-
-    pub fn body(&self) -> &Body {
-        self.0.body()
-    }
-
-    pub fn body_mut(&mut self) -> &mut Body {
-        self.0.body_mut()
-    }
-
-    pub fn error_for_status(self) -> Result<Self, Self> {
-        let status = self.status();
-        if status.is_server_error() || status.is_client_error() {
-            Err(self)
-        } else {
-            Ok(self)
+impl Serialize for InMemoryResponse {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let size = 2 + if self.body.is_empty() { 0 } else { 1 };
+        let mut map = serializer.serialize_map(Some(size))?;
+        map.serialize_entry("status", &self.status.as_u16())?;
+        map.serialize_entry("headers", &crate::http::SortedSerializableHeaders::from(&self.headers))?;
+        if !self.body.is_empty() {
+            map.serialize_entry("body", &self.body)?;
         }
-    }
-
-    pub fn error_for_status_ref(&self) -> Result<&Self, &Self> {
-        let status = self.status();
-        if status.is_server_error() || status.is_client_error() {
-            Err(&self)
-        } else {
-            Ok(&self)
-        }
-    }
-
-    pub async fn text(mut self) -> Result<String, crate::Error> {
-        let bytes = hyper::body::to_bytes(self.0.body_mut()).await?;
-        let encoding = Encoding::for_label(&[]).unwrap_or(encoding_rs::UTF_8);
-        let (text, _, _) = encoding.decode(&bytes);
-        Ok(text.to_string())
-    }
-
-    pub async fn json<U: serde::de::DeserializeOwned>(self) -> Result<U, crate::Error> {
-        let text = self.text().await?;
-        serde_json::from_str(&text).map_err(crate::Error::JsonError)
-    }
-
-    pub async fn bytes(mut self) -> Result<Bytes, crate::Error> {
-        let bytes = hyper::body::to_bytes(self.0.body_mut()).await?;
-        Ok(bytes)
-    }
-
-    pub fn into_parts(self) -> (http::response::Parts, Body) {
-        self.0.into_parts()
-    }
-
-    pub fn from_parts(parts: http::response::Parts, body: Body) -> Self {
-        Response(hyper::Response::from_parts(parts, body))
-    }
-
-    pub(crate) async fn into_infallible_cloneable(self) -> Result<Self, crate::Error> {
-        let (parts, body) = self.into_parts();
-        let content_type = parts.headers.get(hyper::header::CONTENT_TYPE);
-        let body = body.into_memory(content_type).await?;
-        Ok(Response::from_parts(parts, body))
+        map.end()
     }
 }
 
 
-impl From<hyper::Response<hyper::Body>> for Response {
-    fn from(response: hyper::Response<hyper::Body>) -> Self {
-        let (parts, body) = response.into_parts();
-        let body: Body = body.into();
-        Response(hyper::Response::from_parts(parts, body))
+impl<'de> Deserialize<'de> for InMemoryResponse {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(InMemoryResponseVisitor)
     }
 }
 
 
-fn serialize_response<S>(value: &hyper::Response<Body>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-{
-    let mut map = serializer.serialize_map(Some(3))?;
-    map.serialize_entry("status", &value.status().as_u16())?;
-    map.serialize_entry("headers", &SortedHeaders::from(value.headers()))?;
-    map.serialize_entry("data", &NonStreamingBody::from(value.body()))?;
-    map.end()
-}
+struct InMemoryResponseVisitor;
 
+impl<'de> serde::de::Visitor<'de> for InMemoryResponseVisitor {
+    type Value = InMemoryResponse;
 
-struct ResponseVisitor;
-
-impl<'de> serde::de::Visitor<'de> for ResponseVisitor {
-    type Value = Response;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("A map with the following keys: status, headers, data")
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("A map with the following keys: status, headers, body")
     }
 
-    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error> where A: MapAccess<'de> {
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
         let mut status = None;
         let mut headers = None;
-        let mut data = None;
-        while let Some(key) = map.next_key::<Cow<str>>()? {
+        let mut body = None;
+        while let Some(key) = map.next_key::<std::borrow::Cow<str>>()? {
             match key.as_ref() {
                 "status" => {
                     if status.is_some() {
-                        return Err(<A::Error as serde::de::Error>::duplicate_field("status"));
+                        return Err(<A::Error as Error>::duplicate_field("status"));
                     }
                     let i = map.next_value::<u16>()?;
                     status = Some(StatusCode::from_u16(i).map_err(|_e|
-                        <A::Error as serde::de::Error>::custom("Invalid value for field `status`.")
+                        <A::Error as Error>::custom("Invalid value for field `status`.")
                     )?);
                 }
                 "headers" => {
                     if headers.is_some() {
-                        return Err(<A::Error as serde::de::Error>::duplicate_field("headers"));
+                        return Err(<A::Error as Error>::duplicate_field("headers"));
                     }
-                    headers = Some(map.next_value::<SortedHeaders>()?);
+                    headers = Some(map.next_value::<SortedSerializableHeaders>()?);
                 }
-                "data" => {
-                    if data.is_some() {
-                        return Err(<A::Error as serde::de::Error>::duplicate_field("body"));
+                "data" | "body" => {
+                    if body.is_some() {
+                        return Err(<A::Error as Error>::duplicate_field("body"));
                     }
-                    data = Some(map.next_value::<NonStreamingBody>()?);
+                    body = Some(map.next_value::<InMemoryBody>()?);
                 }
                 _ => {
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
         }
-        let status = status.ok_or_else(|| serde::de::Error::missing_field("status"))?;
-        let headers = headers.ok_or_else(|| serde::de::Error::missing_field("headers"))?;
-        let data = data.ok_or_else(|| serde::de::Error::missing_field("data"))?;
-        Ok(Response(hyper::Response::builder()
-            .headers_from_sorted(headers)
-            .status(status)
-            .body(data.into())
-            .unwrap()
-        ))
+        let status = status.ok_or_else(|| Error::missing_field("status"))?;
+        let headers = headers.ok_or_else(|| Error::missing_field("headers"))?;
+        let body = body.ok_or_else(|| Error::missing_field("data"))?;
+        Ok(InMemoryResponse {
+            version: Default::default(),
+            status,
+            headers: headers.into(),
+            body,
+        })
     }
 }
 
-impl<'de> Deserialize<'de> for Response {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(ResponseVisitor)
+impl Response {
+    pub(crate) async fn into_memory(self) -> Result<InMemoryResponse> {
+        let content_type = self.headers.get(hyper::header::CONTENT_TYPE);
+        let body = self.body.into_memory(content_type).await?;
+        Ok(InMemoryResponse {
+            status: self.status,
+            version: self.version,
+            headers: self.headers,
+            body,
+        })
+    }
+
+    pub async fn text(self) -> Result<String> {
+        self.body.into_text().await
+    }
+
+    pub async fn json<U: DeserializeOwned>(self) -> Result<U> {
+        self.body.into_json::<U>().await
+    }
+
+    /// Get body as bytes.
+    pub async fn bytes(self) -> Result<Bytes> {
+        self.body.into_bytes().await
     }
 }
 
-pub struct ResponseWithBody<T> {
-    pub data: T,
-    pub headers: hyper::HeaderMap,
-    pub status: StatusCode,
-}
+impl<T> Response<T> {
+    pub fn error_for_status(self) -> std::result::Result<Self, crate::Error<Body>> {
+        let status = self.status;
+        if status.is_server_error() || status.is_client_error() {
+            Err(crate::Error::HttpError(self))
+        } else {
+            Ok(self)
+        }
+    }
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
 
-impl<T> ResponseWithBody<T> {
-    pub fn cookie(&self, name: &str) -> Option<&str> {
-        self.headers.get("cookie")
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    pub fn get_cookie(&self, name: &str) -> Option<&str> {
+        self.headers.get("set-cookie")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| {
                 let cookies = basic_cookies::Cookie::parse(v).ok()?;
                 cookies.into_iter().find(|c| c.get_name() == name).map(|c| c.get_value())
             })
+    }
+
+}
+
+impl From<InMemoryResponse> for Response {
+    fn from(value: InMemoryResponse) -> Self {
+        Self {
+            status: value.status,
+            version: value.version,
+            headers: value.headers,
+            body: value.body.into(),
+        }
+    }
+}
+
+impl From<http::Response<hyper::Body>> for Response {
+    fn from(value: http::Response<hyper::Body>) -> Self {
+        let (parts, body) = value.into_parts();
+        Self {
+            status: parts.status,
+            version: parts.version,
+            headers: parts.headers,
+            body: Body::Hyper(body),
+        }
+    }
+}
+
+
+impl Clone for InMemoryResponse {
+    fn clone(&self) -> Self {
+        Self {
+            status: self.status,
+            version: self.version,
+            headers: self.headers.clone(),
+            body: self.body.clone(),
+        }
     }
 }
