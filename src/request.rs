@@ -122,17 +122,17 @@ impl From<InMemoryRequest> for Request {
     }
 }
 
-impl Into<hyper::Request<hyper::Body>> for Request {
-    fn into(self) -> http::Request<hyper::Body> {
+impl From<Request> for hyper::Request<hyper::Body> {
+    fn from(value: Request) -> Self {
         let mut builder = http::Request::builder()
-            .version(self.version)
-            .method(self.method)
-            .uri(self.uri);
-        for (key, value) in self.headers.into_iter().filter_map(|(k, v)| Some((k?, v))) {
+            .version(value.version)
+            .method(value.method)
+            .uri(value.uri);
+        for (key, value) in value.headers.into_iter().filter_map(|(k, v)| Some((k?, v))) {
             builder = builder.header(key, value);
         }
         builder
-            .body(self.body.into())
+            .body(value.body.into())
             .unwrap()
     }
 }
