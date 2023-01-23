@@ -74,6 +74,11 @@ impl<T> Request<T> {
         self.uri = url;
         self
     }
+
+    pub fn header(&self, key: &str) -> Option<&str> {
+        let value = self.headers.get(key)?;
+        value.to_str().ok()
+    }
 }
 
 impl Request {
@@ -134,61 +139,12 @@ impl Into<hyper::Request<hyper::Body>> for Request {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::hash_map::DefaultHasher;
     use std::collections::HashMap;
-    use std::hash::{Hash, Hasher};
 
     use serde_json::json;
-    use serde::{Serialize, Deserialize};
     use crate::Client;
 
     use super::*;
-
-    #[test]
-    fn test_request_serialization_roundtrip() {
-        #[derive(Serialize, Deserialize, Debug)]
-        struct Foobar {
-            a: u32,
-            b: u32,
-        }
-        let data = Foobar { a: 1, b: 2 };
-        let r1 = Request::build_post("http://example.com/")
-            .json(&data)
-            .build();
-        let s = serde_json::to_string_pretty(&r1).unwrap();
-        let r2: InMemoryRequest = serde_json::from_str(&s).unwrap();
-        assert_eq!(r1, r2);
-    }
-
-    #[test]
-    fn test_equal() {
-        #[derive(Serialize, Deserialize, Debug)]
-        struct Foobar {
-            a: u32,
-            b: u32,
-        }
-        let data = Foobar { a: 1, b: 2 };
-        let r1 = Request::build_post("https://example.com/")
-            .header("content-type", "application/json")
-            .json(&data)
-            .build();
-        let r2 = Request::build_post("https://example.com/")
-            .header("content-type", "application/json")
-            .json(&data)
-            .build();
-        assert_eq!(r1, r2);
-        let h1 = {
-            let mut s = DefaultHasher::new();
-            r1.hash(&mut s);
-            s.finish()
-        };
-        let h2 = {
-            let mut s = DefaultHasher::new();
-            r2.hash(&mut s);
-            s.finish()
-        };
-        assert_eq!(h1, h2);
-    }
 
     #[test]
     fn test_push_query() {

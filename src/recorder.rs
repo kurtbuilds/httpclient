@@ -21,14 +21,14 @@ pub struct RequestRecorder {
 }
 
 
-pub fn load_requests(path: &PathBuf) -> impl Iterator<Item=RequestResponsePair> {
+fn load_requests(path: &PathBuf) -> impl Iterator<Item=RequestResponsePair> {
     WalkDir::new(path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file() && e.file_name().to_str().unwrap().ends_with(".json"))
         .flat_map(|filepath| {
             let f = fs::File::open(filepath.path()).unwrap();
-            let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
+            let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap();
             res.into_iter()
         })
 }
@@ -36,10 +36,12 @@ pub fn load_requests(path: &PathBuf) -> impl Iterator<Item=RequestResponsePair> 
 impl RequestRecorder {
     pub fn new() -> Self {
         let path = std::env::current_dir().unwrap().join("data").join("vcr");
+        println!("Request recorder opened at {}", path.display());
         // println!("Request recorder opened at {}", path.display());
         let requests: HashMap<InMemoryRequest, InMemoryResponse> = load_requests(&path)
             .map(|r| (r.request, r.response))
             .collect();
+        println!("Loaded {} requests", requests.len());
         RequestRecorder {
             base_path: path,
             requests,
@@ -47,6 +49,8 @@ impl RequestRecorder {
     }
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
+        println!("Looking for response for request: {:?}", request);
+        println!("Requests: {:?}", self.requests.keys().collect::<Vec<_>>());
         self.requests.get(request).cloned()
     }
 
@@ -58,7 +62,7 @@ impl RequestRecorder {
         path
     }
 
-    pub fn record_response(&self, request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
+    pub fn record_response(&self, mut request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
         let path = self.filepath_for_request(&request);
         // println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
@@ -70,6 +74,7 @@ impl RequestRecorder {
             HashMap::new()
         };
         // println!("Recording response: {:?}", response);
+        request.sanitize();
         response.sanitize();
         map.insert(request, response);
         let f = fs::File::create(&path)?;

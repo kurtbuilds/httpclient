@@ -14,5 +14,4 @@ mod request;
 mod response;
 pub mod middleware;
 mod body;
-mod http;
 mod sanitize;

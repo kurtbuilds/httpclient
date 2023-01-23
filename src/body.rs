@@ -1,12 +1,12 @@
-use std::hash::Hasher;
+
 
 use http::HeaderValue;
-use hyper::body::{Bytes, HttpBody};
-use serde::{Deserialize, Serialize};
-use serde::de::{DeserializeOwned, Error};
-use serde_json::Value;
+use hyper::body::{HttpBody};
 
-use crate::{InMemoryResult, Result};
+
+
+
+use crate::{Result};
 use crate::error::ProtocolError;
 
 mod memory;
@@ -99,9 +99,9 @@ mod tests {
 
     #[test]
     fn test_serialization() {
-        let _body = InMemoryBody::new_json(serde_json::json!({
+        let body = InMemoryBody::new_json(serde_json::json!({
             "foo": "bar"
         }));
-        assert_eq!(1, 0);
+        assert_eq!(serde_json::to_string(&body).unwrap(), r#"{"foo":"bar"}"#);
     }
 }

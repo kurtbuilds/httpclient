@@ -6,6 +6,7 @@ use serde::ser::SerializeMap;
 
 use crate::{InMemoryBody, InMemoryResult, Response, Result};
 use crate::response::ResponseParts;
+use crate::sanitize::sanitize_headers;
 
 pub type InMemoryResponse = Response<InMemoryBody>;
 
@@ -30,18 +31,21 @@ impl InMemoryResponse {
         self.body.bytes()
     }
 
+    /// Attempt to clear sensitive information from the response.
     pub fn sanitize(&mut self) {
         self.body.sanitize();
+        sanitize_headers(&mut self.parts.headers);
     }
 }
 
 impl Serialize for InMemoryResponse {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use std::collections::BTreeMap;
         let size = 2 + usize::from(!self.body.is_empty());
         let mut map = serializer.serialize_map(Some(size))?;
         map.serialize_entry("status", &self.status().as_u16())?;
         // BTreeMap is sorted...
-        let ordered: std::collections::BTreeMap<_, _> = self.headers().iter()
+        let ordered: BTreeMap<_, _> = self.headers().iter()
             .map(|(k, v)| (k.as_str(), v.to_str().unwrap()))
             .collect();
         map.serialize_entry("headers", &ordered)?;
@@ -63,10 +67,14 @@ impl<'de> Deserialize<'de> for InMemoryResponse {
             }
 
             fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
+                use std::borrow::Cow;
+                use std::collections::BTreeMap;
+                use hyper::header::{HeaderName, HeaderValue};
+
                 let mut status = None;
                 let mut headers = None;
                 let mut body = None;
-                while let Some(key) = map.next_key::<std::borrow::Cow<str>>()? {
+                while let Some(key) = map.next_key::<Cow<str>>()? {
                     match key.as_ref() {
                         "status" => {
                             if status.is_some() {
@@ -81,7 +89,7 @@ impl<'de> Deserialize<'de> for InMemoryResponse {
                             if headers.is_some() {
                                 return Err(<A::Error as Error>::duplicate_field("headers"));
                             }
-                            headers = Some(map.next_value::<std::collections::BTreeMap<&str, &str>>()?);
+                            headers = Some(map.next_value::<BTreeMap<Cow<'de, str>, Cow<'de, str>>>()?);
                         }
                         "data" | "body" => {
                             if body.is_some() {
@@ -96,7 +104,7 @@ impl<'de> Deserialize<'de> for InMemoryResponse {
                 }
                 let status = status.ok_or_else(|| Error::missing_field("status"))?;
                 let headers = HeaderMap::from_iter(headers.ok_or_else(|| Error::missing_field("headers"))?.iter()
-                    .map(|(k, v)| (http::header::HeaderName::from_bytes(k.as_bytes()).unwrap(), http::header::HeaderValue::from_str(v).unwrap()))
+                    .map(|(k, v)| (HeaderName::from_bytes(k.as_bytes()).unwrap(), HeaderValue::from_str(v).unwrap()))
                 );
                 let body = body.ok_or_else(|| Error::missing_field("data"))?;
                 Ok(InMemoryResponse::new(status, headers, body))

@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::str::FromStr;
 
 use http::{HeaderMap, HeaderValue, Method, Uri, Version};
@@ -8,44 +7,16 @@ use serde::de::Error;
 use serde::ser::SerializeMap;
 
 use crate::{InMemoryBody, Request, Result};
+use crate::sanitize::sanitize_headers;
 
 pub type InMemoryRequest = Request<InMemoryBody>;
 
 
 impl InMemoryRequest {
-    pub fn test(method: &str, url: &str) -> Self {
-        Self {
-            method: Method::from_str(&method.to_uppercase()).unwrap(),
-            uri: Uri::from_str(url).unwrap(),
-            version: Default::default(),
-            headers: Default::default(),
-            body: InMemoryBody::Empty,
-        }
-    }
-
-    pub fn set_body(mut self, body: InMemoryBody) -> Self {
-        self.body = body;
-        self
-    }
-
-    pub fn set_header(mut self, key: impl Into<HeaderName>, value: impl Into<HeaderValue>) -> Self {
-        self.headers.insert(key.into(), value.into());
-        self
-    }
-
-    pub fn set_headers(mut self, headers: HeaderMap) -> Self {
-        self.headers = headers;
-        self
-    }
-
-    pub fn set_version(mut self, version: Version) -> Self {
-        self.version = version;
-        self
-    }
-
-    pub fn set_method(mut self, method: Method) -> Self {
-        self.method = method;
-        self
+    /// Attempt to clear sensitive information from the request.
+    pub fn sanitize(&mut self) {
+        sanitize_headers(&mut self.headers);
+        self.body.sanitize();
     }
 }
 
@@ -131,6 +102,9 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
             }
 
             fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
+                use std::collections::BTreeMap;
+                use std::borrow::Cow;
+                use http::header::{HeaderName, HeaderValue};
                 let mut method = None;
                 let mut url = None;
                 let mut headers = None;
@@ -165,7 +139,7 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                             if headers.is_some() {
                                 return Err(<A::Error as Error>::duplicate_field("headers"));
                             }
-                            headers = Some(map.next_value::<std::collections::BTreeMap<&str, &str>>()?);
+                            headers = Some(map.next_value::<BTreeMap<Cow<'de, str>, Cow<'de, str>>>()?);
                         }
                         _ => {
                             map.next_value::<serde::de::IgnoredAny>()?;
@@ -175,7 +149,7 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                 let method = method.ok_or_else(|| Error::missing_field("method"))?;
                 let url = url.ok_or_else(|| Error::missing_field("url"))?;
                 let headers = HeaderMap::from_iter(headers.ok_or_else(|| Error::missing_field("headers"))?.iter()
-                    .map(|(k, v)| (http::header::HeaderName::from_bytes(k.as_bytes()).unwrap(), http::header::HeaderValue::from_str(v).unwrap()))
+                    .map(|(k, v)| (HeaderName::from_bytes(k.as_bytes()).unwrap(), HeaderValue::from_str(v).unwrap()))
                 );
                 let body = body.unwrap_or(InMemoryBody::Empty);
                 Ok(InMemoryRequest {
@@ -189,5 +163,61 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
         }
 
         deserializer.deserialize_map(InMemoryRequestVisitor)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use super::*;
+
+
+    #[test]
+    fn test_request_serialization_roundtrip() {
+        #[derive(Serialize, Deserialize, Debug)]
+        struct Foobar {
+            a: u32,
+            b: u32,
+        }
+        let data = Foobar { a: 1, b: 2 };
+        let r1 = Request::build_post("http://example.com/")
+            .json(&data)
+            .build();
+        let s = serde_json::to_string_pretty(&r1).unwrap();
+        let r2: InMemoryRequest = serde_json::from_str(&s).unwrap();
+        assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn test_equal() {
+        #[derive(Serialize, Deserialize, Debug)]
+        struct Foobar {
+            a: u32,
+            b: u32,
+        }
+        let data = Foobar { a: 1, b: 2 };
+        let original = Request::build_post("https://example.com/")
+            .header("content-type", "application/json")
+            .header("secret", "will-get-sanitized")
+            .json(&data)
+            .build();
+        let mut sanitized = original.clone();
+        sanitized.sanitize();
+        assert_eq!(original, sanitized);
+        assert_eq!(original.header("secret").unwrap(), "will-get-sanitized");
+        assert_eq!(sanitized.header("secret").unwrap(), "**********");
+        let h1 = {
+            let mut s = DefaultHasher::new();
+            original.hash(&mut s);
+            s.finish()
+        };
+        let h2 = {
+            let mut s = DefaultHasher::new();
+            sanitized.hash(&mut s);
+            s.finish()
+        };
+        assert_eq!(h1, h2);
     }
 }
