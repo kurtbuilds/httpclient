@@ -1,14 +1,11 @@
-extern crate core;
-
-pub use ::http::{Method, Uri};
+pub use ::http::{Method, StatusCode, Uri};
 
 pub use body::{Body, InMemoryBody};
+pub use client::Client;
+pub use error::{Error, InMemoryError, InMemoryResult, Result};
 pub use middleware::Middleware;
 pub use request::{InMemoryRequest, Request, RequestBuilder};
-pub use response::{Response, InMemoryResponse};
-
-pub use crate::client::Client;
-pub use crate::error::{Error, InMemoryError, InMemoryResult, Result};
+pub use response::{InMemoryResponse, Response};
 
 mod client;
 mod error;
