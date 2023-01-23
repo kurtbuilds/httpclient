@@ -39,7 +39,7 @@ impl RequestRecorder {
         println!("Request recorder opened at {}", path.display());
         // println!("Request recorder opened at {}", path.display());
         #[allow(clippy::mutable_key_type)]
-        let requests: HashMap<InMemoryRequest, InMemoryResponse> = load_requests(&path)
+            let requests: HashMap<InMemoryRequest, InMemoryResponse> = load_requests(&path)
             .map(|r| (r.request, r.response))
             .collect();
         println!("Loaded {} requests", requests.len());
@@ -67,11 +67,10 @@ impl RequestRecorder {
         let path = self.filepath_for_request(&request);
         // println!("Recording response to {}", path.display());
         fs::create_dir_all(path.parent().unwrap())?;
+        #[allow(clippy::mutable_key_type)]
         let mut map = if let Ok(f) = fs::File::open(&path) {
             let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
-            #[allow(clippy::mutable_key_type)]
-            let map: HashMap<InMemoryRequest, InMemoryResponse> = HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)));
-            map
+            HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)))
         } else {
             HashMap::new()
         };
