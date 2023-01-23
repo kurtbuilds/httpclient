@@ -48,6 +48,12 @@ pub struct RecorderMiddleware {
     pub request_recorder: RequestRecorder,
 }
 
+impl Default for RecorderMiddleware {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RecorderMiddleware {
     pub fn new() -> Self {
         Self {

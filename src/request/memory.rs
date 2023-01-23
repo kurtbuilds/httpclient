@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
-use http::header::HeaderName;
+use http::{HeaderMap, Method, Uri};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 use serde::ser::SerializeMap;
