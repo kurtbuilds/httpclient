@@ -31,7 +31,7 @@ impl TryInto<String> for InMemoryBody {
                 String::from_utf8(b).map_err(crate::Error::Utf8Error)
             }
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(crate::Error::JsonEncodingError)
+            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(crate::Error::JsonEncoding)
         }
     }
 }
@@ -83,15 +83,15 @@ impl InMemoryBody {
 
     pub fn json<T: DeserializeOwned>(self) -> InMemoryResult<T> {
         match self {
-            InMemoryBody::Empty => Err(crate::Error::JsonEncodingError(serde_json::Error::custom("Empty body"))),
+            InMemoryBody::Empty => Err(crate::Error::JsonEncoding(serde_json::Error::custom("Empty body"))),
             InMemoryBody::Bytes(b) => {
-                serde_json::from_slice(&b).map_err(crate::Error::JsonEncodingError)
+                serde_json::from_slice(&b).map_err(crate::Error::JsonEncoding)
             }
             InMemoryBody::Text(t) => {
-                serde_json::from_str(&t).map_err(crate::Error::JsonEncodingError)
+                serde_json::from_str(&t).map_err(crate::Error::JsonEncoding)
             }
             InMemoryBody::Json(v) => {
-                serde_json::from_value(v).map_err(crate::Error::JsonEncodingError)
+                serde_json::from_value(v).map_err(crate::Error::JsonEncoding)
             }
         }
     }
