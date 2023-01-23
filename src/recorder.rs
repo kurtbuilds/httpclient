@@ -91,3 +91,9 @@ impl RequestRecorder {
         unimplemented!()
     }
 }
+
+impl Default for RequestRecorder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

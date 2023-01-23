@@ -101,9 +101,8 @@ impl InMemoryBody {
     }
 
     pub fn sanitize(&mut self) {
-        match self {
-            InMemoryBody::Json(value) => sanitize_value(value),
-            _ => {},
+        if let InMemoryBody::Json(value) = self {
+            sanitize_value(value)
         }
     }
 }
