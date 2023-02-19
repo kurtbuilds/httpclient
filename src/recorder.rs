@@ -1,6 +1,8 @@
-use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use indexmap::IndexMap;
 
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -14,35 +16,54 @@ pub struct RequestResponsePair {
     pub response: InMemoryResponse,
 }
 
-
-pub struct RequestRecorder {
-    pub base_path: PathBuf,
-    pub requests: HashMap<InMemoryRequest, InMemoryResponse>,
+#[derive(Debug)]
+pub struct RRPair {
+    pub request: InMemoryRequest,
+    pub response: InMemoryResponse,
+    pub fname: String,
 }
 
 
-fn load_requests(path: &PathBuf) -> impl Iterator<Item=RequestResponsePair> {
+pub struct RequestRecorder {
+    pub base_path: PathBuf,
+    pub requests: Arc<RwLock<IndexMap<InMemoryRequest, InMemoryResponse>>>,
+}
+
+
+fn load_requests(path: &PathBuf) -> impl Iterator<Item=RRPair> {
     WalkDir::new(path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file() && e.file_name().to_str().unwrap().ends_with(".json"))
-        .flat_map(|filepath| {
-            let f = fs::File::open(filepath.path()).unwrap();
-            let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap();
-            res.into_iter()
+        .map(|filepath| {
+            println!("Loading {}", filepath.path().display());
+            let f = fs::read_to_string(filepath.path()).unwrap();
+            let rr: RequestResponsePair = serde_json::from_str(&f).unwrap();
+            RRPair {
+                request: rr.request,
+                response: rr.response,
+                fname: filepath.path().file_name().unwrap().to_str().unwrap().to_string(),
+            }
         })
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = std::collections::hash_map::DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 impl RequestRecorder {
     pub fn new() -> Self {
         let path = std::env::current_dir().unwrap().join("data").join("vcr");
         println!("Request recorder opened at {}", path.display());
-        // println!("Request recorder opened at {}", path.display());
-        #[allow(clippy::mutable_key_type)]
-            let requests: HashMap<InMemoryRequest, InMemoryResponse> = load_requests(&path)
+        let mut requests = load_requests(&path).collect::<Vec<_>>();
+        requests.sort_by_key(|rr| rr.fname.clone());
+        let requests: IndexMap<InMemoryRequest, InMemoryResponse> = requests.into_iter()
             .map(|r| (r.request, r.response))
-            .collect();
+            .collect::<_>();
         println!("Loaded {} requests", requests.len());
+        let requests = Arc::new(RwLock::new(requests));
         RequestRecorder {
             base_path: path,
             requests,
@@ -50,37 +71,41 @@ impl RequestRecorder {
     }
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
-        println!("Looking for response for request: {:?}", request);
-        println!("Requests: {:?}", self.requests.keys().collect::<Vec<_>>());
-        self.requests.get(request).cloned()
+        println!("Looking for response for request: {:?}, {}", request, calculate_hash(request));
+        self.requests.read().unwrap().get(request).map(|c| c.clone())
     }
 
-    fn filepath_for_request(&self, request: &InMemoryRequest) -> PathBuf {
+    fn partial_filepath(&self, request: &InMemoryRequest) -> PathBuf {
         let mut path = self.base_path.clone();
         path.push(request.host());
         path.push(&request.path()[1..]);
-        path.push(request.method().as_str().to_lowercase() + ".json");
+        path.push(request.method().as_str().to_lowercase());
         path
     }
 
+    pub fn clear(&mut self) {
+        self.requests.write().unwrap().clear();
+    }
+
     pub fn record_response(&self, mut request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
-        let path = self.filepath_for_request(&request);
-        // println!("Recording response to {}", path.display());
-        fs::create_dir_all(path.parent().unwrap())?;
-        #[allow(clippy::mutable_key_type)]
-            let mut map = if let Ok(f) = fs::File::open(&path) {
-            let res = serde_json::from_reader::<_, Vec<RequestResponsePair>>(&f).unwrap_or_default();
-            HashMap::from_iter(res.into_iter().map(|r| (r.request, r.response)))
-        } else {
-            HashMap::new()
-        };
-        // println!("Recording response: {:?}", response);
+        let partial_path = self.partial_filepath(&request);
         request.sanitize();
         response.sanitize();
-        map.insert(request, response);
-        let f = fs::File::create(&path)?;
-        let res = map.into_iter().map(|(k, v)| RequestResponsePair { request: k, response: v }).collect::<Vec<_>>();
-        serde_json::to_writer_pretty(f, &res)?;
+
+        let rr = RequestResponsePair {
+            request,
+            response,
+        };
+        let stringified = serde_json::to_string_pretty(&rr).unwrap();
+        let RequestResponsePair { request, response } = rr;
+        let idx;
+        {
+            let mut write = self.requests.write().unwrap();
+            let (i, _old) = write.insert_full(request, response);
+            idx = i;
+        }
+        let path = partial_path.with_extension(format!("{:04}.json", idx));
+        fs::write(&path, stringified)?;
         Ok(())
     }
 
