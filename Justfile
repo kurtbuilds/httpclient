@@ -51,3 +51,6 @@ patch: test
 
 bench:
     cargo criterion
+
+wasm:  
+    cargo build --target wasm32-unknown-unknown
