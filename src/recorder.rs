@@ -105,6 +105,7 @@ impl RequestRecorder {
             idx = i;
         }
         let path = partial_path.with_extension(format!("{:04}.json", idx));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, stringified)?;
         Ok(())
     }
