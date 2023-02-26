@@ -1,22 +1,12 @@
-
-
 use std::str::FromStr;
 
-
 use http::{HeaderMap, Version};
-
-
 use hyper::{Method, Uri};
-
-
-
 
 pub use builder::RequestBuilder;
 pub use memory::InMemoryRequest;
 
-use crate::{Body, Result, InMemoryBody};
-
-
+use crate::{Body, InMemoryBody, Result};
 
 mod memory;
 mod builder;
@@ -142,6 +132,7 @@ mod tests {
     use std::collections::HashMap;
 
     use serde_json::json;
+
     use crate::Client;
 
     use super::*;
