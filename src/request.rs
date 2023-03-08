@@ -56,7 +56,7 @@ impl<T> Request<T> {
         &self.headers
     }
 
-    pub fn headers_mut(&mut self) -> &HeaderMap {
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
 
