@@ -1,10 +1,12 @@
-use hyper::body::Bytes;
 use std::hash::Hasher;
+
+use hyper::body::Bytes;
+use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde::de::{DeserializeOwned, Error};
-use crate::InMemoryResult;
+
 use crate::sanitize::sanitize_value;
+use crate::InMemoryResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -27,11 +29,11 @@ impl TryInto<String> for InMemoryBody {
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
             InMemoryBody::Empty => Ok("".to_string()),
-            InMemoryBody::Bytes(b) => {
-                String::from_utf8(b).map_err(crate::Error::Utf8Error)
-            }
+            InMemoryBody::Bytes(b) => String::from_utf8(b).map_err(crate::Error::Utf8Error),
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(crate::Error::JsonEncoding)
+            InMemoryBody::Json(val) => {
+                serde_json::to_string(&val).map_err(crate::Error::JsonEncoding)
+            }
         }
     }
 }
@@ -48,7 +50,6 @@ impl TryInto<Bytes> for InMemoryBody {
         }
     }
 }
-
 
 impl InMemoryBody {
     pub fn new_bytes(bytes: impl Into<Vec<u8>>) -> Self {
@@ -83,16 +84,14 @@ impl InMemoryBody {
 
     pub fn json<T: DeserializeOwned>(self) -> InMemoryResult<T> {
         match self {
-            InMemoryBody::Empty => Err(crate::Error::JsonEncoding(serde_json::Error::custom("Empty body"))),
+            InMemoryBody::Empty => Err(crate::Error::JsonEncoding(serde_json::Error::custom(
+                "Empty body",
+            ))),
             InMemoryBody::Bytes(b) => {
                 serde_json::from_slice(&b).map_err(crate::Error::JsonEncoding)
             }
-            InMemoryBody::Text(t) => {
-                serde_json::from_str(&t).map_err(crate::Error::JsonEncoding)
-            }
-            InMemoryBody::Json(v) => {
-                serde_json::from_value(v).map_err(crate::Error::JsonEncoding)
-            }
+            InMemoryBody::Text(t) => serde_json::from_str(&t).map_err(crate::Error::JsonEncoding),
+            InMemoryBody::Json(v) => serde_json::from_value(v).map_err(crate::Error::JsonEncoding),
         }
     }
 

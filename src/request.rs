@@ -1,15 +1,14 @@
 use std::str::FromStr;
 
+pub use builder::RequestBuilder;
 use http::{HeaderMap, Version};
 use hyper::{Method, Uri};
-
-pub use builder::RequestBuilder;
 pub use memory::InMemoryRequest;
 
 use crate::{Body, InMemoryBody, Result};
 
-mod memory;
 mod builder;
+mod memory;
 
 #[derive(Debug)]
 pub struct Request<T = Body> {
@@ -96,7 +95,11 @@ impl Request {
     }
 
     pub fn build_delete(url: &str) -> RequestBuilder<(), InMemoryBody> {
-        RequestBuilder::new(&(), Method::DELETE, Uri::from_str(url).expect("Invalid URL"))
+        RequestBuilder::new(
+            &(),
+            Method::DELETE,
+            Uri::from_str(url).expect("Invalid URL"),
+        )
     }
 }
 
@@ -121,9 +124,7 @@ impl From<Request> for hyper::Request<hyper::Body> {
         for (key, value) in value.headers.into_iter().filter_map(|(k, v)| Some((k?, v))) {
             builder = builder.header(key, value);
         }
-        builder
-            .body(value.body.into())
-            .unwrap()
+        builder.body(value.body.into()).unwrap()
     }
 }
 
@@ -133,9 +134,8 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::Client;
-
     use super::*;
+    use crate::Client;
 
     #[test]
     fn test_push_query() {
@@ -148,10 +148,16 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let r1 = Request::build_get("http://example.com/foo/bar")
-            .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
+        let r1 = Request::build_get("http://example.com/foo/bar").set_query(HashMap::from([
+            ("a", Some("b")),
+            ("c", Some("d")),
+            ("e", None),
+        ]));
         assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
-        assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
+        assert_eq!(
+            r1.build().url().to_string(),
+            "http://example.com/foo/bar?a=b&c=d&e="
+        );
     }
 
     #[test]
@@ -163,6 +169,10 @@ mod tests {
     #[test]
     fn test_request_builder() {
         let client = Client::new();
-        let _ = RequestBuilder::new(&client, Method::POST, "http://example.com/foo".parse().unwrap());
+        let _ = RequestBuilder::new(
+            &client,
+            Method::POST,
+            "http://example.com/foo".parse().unwrap(),
+        );
     }
 }

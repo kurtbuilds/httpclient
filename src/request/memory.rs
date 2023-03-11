@@ -1,16 +1,14 @@
 use std::str::FromStr;
 
 use http::{HeaderMap, Method, Uri};
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{InMemoryBody, Request, Result};
 use crate::sanitize::sanitize_headers;
+use crate::{InMemoryBody, Request, Result};
 
 pub type InMemoryRequest = Request<InMemoryBody>;
-
 
 impl InMemoryRequest {
     /// Attempt to clear sensitive information from the request.
@@ -31,7 +29,6 @@ impl Clone for InMemoryRequest {
         }
     }
 }
-
 
 impl std::hash::Hash for Request<InMemoryBody> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -55,8 +52,8 @@ impl std::hash::Hash for Request<InMemoryBody> {
 
 impl PartialEq<Self> for Request<InMemoryBody> {
     fn eq(&self, other: &Self) -> bool {
-        if !(self.method == other.method
-            && self.uri == other.uri
+        if !(
+            self.method == other.method && self.uri == other.uri
             // && self.headers == other.headers
         ) {
             return false;
@@ -79,7 +76,9 @@ impl Serialize for InMemoryRequest {
         let mut map = serializer.serialize_map(Some(size))?;
         map.serialize_entry("method", &self.method.as_str())?;
         map.serialize_entry("url", &self.uri.to_string().as_str())?;
-        let ordered: std::collections::BTreeMap<_, _> = self.headers().iter()
+        let ordered: std::collections::BTreeMap<_, _> = self
+            .headers()
+            .iter()
             .map(|(k, v)| (k.as_str(), v.to_str().unwrap()))
             .collect();
         map.serialize_entry("headers", &ordered)?;
@@ -101,9 +100,11 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                 formatter.write_str("A map with the following keys: method, url, headers, body")
             }
 
-            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
-                use std::collections::BTreeMap;
+            fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where A: serde::de::MapAccess<'de> {
                 use std::borrow::Cow;
+                use std::collections::BTreeMap;
+
                 use http::header::{HeaderName, HeaderValue};
                 let mut method = None;
                 let mut url = None;
@@ -116,18 +117,18 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                                 return Err(<A::Error as Error>::duplicate_field("method"));
                             }
                             let s = map.next_value::<String>()?;
-                            method = Some(Method::from_str(&s).map_err(|_e|
+                            method = Some(Method::from_str(&s).map_err(|_e| {
                                 <A::Error as Error>::custom("Invalid value for field `method`.")
-                            )?);
+                            })?);
                         }
                         "url" => {
                             if url.is_some() {
                                 return Err(<A::Error as Error>::duplicate_field("url"));
                             }
                             let s = map.next_value::<String>()?;
-                            url = Some(Uri::from_str(&s).map_err(|_e|
+                            url = Some(Uri::from_str(&s).map_err(|_e| {
                                 <A::Error as Error>::custom("Invalid value for field `url`.")
-                            )?);
+                            })?);
                         }
                         "body" | "data" => {
                             if body.is_some() {
@@ -139,7 +140,8 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                             if headers.is_some() {
                                 return Err(<A::Error as Error>::duplicate_field("headers"));
                             }
-                            headers = Some(map.next_value::<BTreeMap<Cow<'de, str>, Cow<'de, str>>>()?);
+                            headers =
+                                Some(map.next_value::<BTreeMap<Cow<'de, str>, Cow<'de, str>>>()?);
                         }
                         _ => {
                             map.next_value::<serde::de::IgnoredAny>()?;
@@ -148,8 +150,16 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
                 }
                 let method = method.ok_or_else(|| Error::missing_field("method"))?;
                 let url = url.ok_or_else(|| Error::missing_field("url"))?;
-                let headers = HeaderMap::from_iter(headers.ok_or_else(|| Error::missing_field("headers"))?.iter()
-                    .map(|(k, v)| (HeaderName::from_bytes(k.as_bytes()).unwrap(), HeaderValue::from_str(v).unwrap()))
+                let headers = HeaderMap::from_iter(
+                    headers
+                        .ok_or_else(|| Error::missing_field("headers"))?
+                        .iter()
+                        .map(|(k, v)| {
+                            (
+                                HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                                HeaderValue::from_str(v).unwrap(),
+                            )
+                        }),
                 );
                 let body = body.unwrap_or(InMemoryBody::Empty);
                 Ok(InMemoryRequest {
@@ -166,13 +176,12 @@ impl<'de> Deserialize<'de> for InMemoryRequest {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use super::*;
 
+    use super::*;
 
     #[test]
     fn test_request_serialization_roundtrip() {

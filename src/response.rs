@@ -1,11 +1,10 @@
 use http::{HeaderMap, StatusCode, Version};
 use hyper::body::Bytes;
-use serde::{de::DeserializeOwned};
-
 pub use memory::*;
+use serde::de::DeserializeOwned;
 
-use crate::Result;
 use crate::body::Body;
+use crate::Result;
 
 mod memory;
 
@@ -14,7 +13,6 @@ pub struct Response<T = Body> {
     pub parts: ResponseParts,
     pub body: T,
 }
-
 
 impl Response {
     pub(crate) async fn into_content(self) -> Result<InMemoryResponse> {
@@ -52,10 +50,7 @@ impl Response {
 
 impl<T> Response<T> {
     pub fn from_parts(parts: ResponseParts, body: T) -> Self {
-        Self {
-            parts,
-            body,
-        }
+        Self { parts, body }
     }
 
     pub fn into_parts(self) -> (ResponseParts, T) {
@@ -74,7 +69,8 @@ impl<T> Response<T> {
         let value = self.parts.headers.get("set-cookie")?;
         let value = value.to_str().ok()?;
         let cookie = cookie::Cookie::split_parse_encoded(value);
-        let cookie = cookie.into_iter()
+        let cookie = cookie
+            .into_iter()
             .filter_map(|c| c.ok())
             .find(|c| c.name() == name)?;
         cookie.value_raw()
@@ -104,7 +100,6 @@ impl From<http::Response<hyper::Body>> for Response {
         }
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct ResponseParts {

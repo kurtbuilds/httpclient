@@ -1,25 +1,18 @@
-
-
 use http::HeaderValue;
-use hyper::body::{HttpBody};
+use hyper::body::HttpBody;
 
-
-
-
-use crate::{Result};
 use crate::error::ProtocolError;
+use crate::Result;
 
 mod memory;
 
 pub use memory::*;
-
 
 #[derive(Debug)]
 pub enum Body {
     InMemory(InMemoryBody),
     Hyper(hyper::Body),
 }
-
 
 impl Body {
     pub fn new_empty() -> Self {
@@ -43,12 +36,16 @@ impl Body {
         }
     }
 
-    pub async fn into_content_type(self, content_type: Option<&HeaderValue>) -> Result<InMemoryBody, ProtocolError> {
+    pub async fn into_content_type(
+        self,
+        content_type: Option<&HeaderValue>,
+    ) -> Result<InMemoryBody, ProtocolError> {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
                 let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let content_type = content_type.map(|ct| ct.to_str().unwrap().split(';').next().unwrap());
+                let content_type =
+                    content_type.map(|ct| ct.to_str().unwrap().split(';').next().unwrap());
                 match content_type {
                     Some("application/json") => {
                         let value = serde_json::from_slice(&bytes)?;
@@ -59,7 +56,7 @@ impl Body {
                     _ => {
                         let text = String::from_utf8(bytes.to_vec())?;
                         Ok(InMemoryBody::Text(text))
-                    },
+                    }
                 }
             }
         }
@@ -87,11 +84,10 @@ impl From<Body> for hyper::Body {
             Body::InMemory(InMemoryBody::Json(value)) => {
                 let b = serde_json::to_vec(&value).unwrap();
                 hyper::Body::from(b)
-            },
+            }
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

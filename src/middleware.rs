@@ -1,11 +1,12 @@
 use std::str::FromStr;
-use crate::{Error, Response};
 
 use async_trait::async_trait;
 use http::Uri;
+
 use crate::client::Client;
-use crate::request::{Request};
 use crate::recorder::RequestRecorder;
+use crate::request::Request;
+use crate::{Error, Response};
 
 #[derive(Copy, Clone)]
 pub struct Next<'a> {
@@ -78,7 +79,6 @@ impl RecorderMiddleware {
     }
 }
 
-
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RecorderMode {
     /// Default. Will check for recordings, but will make the request if no recording is found.
@@ -88,7 +88,6 @@ pub enum RecorderMode {
     /// Always use recordings. Fail if no recording is found.
     ForceNoRequests,
 }
-
 
 impl RecorderMode {
     pub fn should_lookup(self) -> bool {
@@ -108,7 +107,6 @@ impl RecorderMode {
     }
 }
 
-
 #[async_trait]
 impl Middleware for RecorderMiddleware {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
@@ -124,7 +122,8 @@ impl Middleware for RecorderMiddleware {
         }
         let response = next.run(request.clone().into()).await?;
         let response = response.into_content().await?;
-        self.request_recorder.record_response(request, response.clone())?;
+        self.request_recorder
+            .record_response(request, response.clone())?;
         Ok(response.into())
     }
 }
@@ -203,7 +202,12 @@ impl Middleware for FollowRedirectsMiddleware {
             if allowed_redirects == 0 {
                 return Err(Error::TooManyRedirects);
             }
-            let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
+            let redirect = res
+                .headers()
+                .get(http::header::LOCATION)
+                .expect("Received a 3xx status code, but no location header was sent.")
+                .to_str()
+                .unwrap();
             let url = fix_url(request.url(), redirect);
             let request = request.clone();
             let request = request.set_url(url);
@@ -213,7 +217,6 @@ impl Middleware for FollowRedirectsMiddleware {
         Ok(res)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

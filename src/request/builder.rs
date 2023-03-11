@@ -1,14 +1,16 @@
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
-use http::header::HeaderName;
-use serde::Serialize;
-use serde_json::Value;
 use std::borrow::Cow;
-use http::uri::PathAndQuery;
-use futures::future::BoxFuture;
 use std::future::IntoFuture;
 use std::str::FromStr;
-use crate::{Body, Client, InMemoryResponse, Request, Response, InMemoryBody};
+
+use futures::future::BoxFuture;
+use http::header::HeaderName;
+use http::uri::PathAndQuery;
+use http::{HeaderMap, HeaderValue, Method, Uri, Version};
+use serde::Serialize;
+use serde_json::Value;
+
 use crate::middleware::Next;
+use crate::{Body, Client, InMemoryBody, InMemoryResponse, Request, Response};
 
 #[derive(Debug)]
 pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
@@ -35,17 +37,19 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Overwrite the current body with the provided JSON object.
     pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(InMemoryBody::Json(serde_json::to_value(obj).unwrap()));
-        self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("application/json"));
+        self.headers
+            .entry(&hyper::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        self.headers
+            .entry(hyper::header::ACCEPT)
+            .or_insert(HeaderValue::from_static("application/json"));
         self
     }
 
     /// Add the provided JSON object to the current body.
     pub fn json<S: Serialize>(mut self, obj: S) -> Self {
         match self.body {
-            None => {
-                self.set_json(obj)
-            }
+            None => self.set_json(obj),
             Some(InMemoryBody::Json(Value::Object(ref mut body))) => {
                 if let Value::Object(obj) = serde_json::to_value(obj).unwrap() {
                     body.extend(obj.into_iter());
@@ -54,21 +58,27 @@ impl<'a, C> RequestBuilder<'a, C> {
                 }
                 self
             }
-            _ => panic!("Tried to call .json() on a non-json body. Use .set_json if you need to force a json body."),
+            _ => panic!(
+                "Tried to call .json() on a non-json body. Use .set_json if you need to force a json body."
+            ),
         }
     }
 
     /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
     pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
         self.body = Some(InMemoryBody::Bytes(bytes));
-        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
+        self.headers
+            .entry(hyper::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/octet-stream"));
         self
     }
 
     /// Sets content-type to `text/plain` and the body to the supplied text.
     pub fn text(mut self, text: String) -> Self {
         self.body = Some(InMemoryBody::Text(text));
-        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
+        self.headers
+            .entry(hyper::header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("text/plain"));
         self
     }
 }
@@ -85,7 +95,9 @@ impl<'a> RequestBuilder<'a> {
 
     /// Normally, we have to `await` the body as well. This convenience method makes the body
     /// available immediately.
-    pub fn send_awaiting_body(self) -> BoxFuture<'a, crate::Result<InMemoryResponse, crate::Error<InMemoryBody>>> {
+    pub fn send_awaiting_body(
+        self,
+    ) -> BoxFuture<'a, crate::Result<InMemoryResponse, crate::Error<InMemoryBody>>> {
         Box::pin(async move {
             let res = self.send().await;
             let res = match res {
@@ -106,7 +118,6 @@ impl<'a> RequestBuilder<'a> {
         })
     }
 }
-
 
 impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
     pub fn build(self) -> Request<B> {
@@ -142,16 +153,18 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
         self
     }
 
-    pub fn set_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
+    pub fn set_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
         self.headers = HeaderMap::new();
         self.headers(headers)
     }
 
-    pub fn headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
-        self.headers.extend(headers.map(|(k, v)| (
-            HeaderName::from_str(k.as_ref()).unwrap(),
-            HeaderValue::from_str(v.as_ref()).unwrap()
-        )));
+    pub fn headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
+        self.headers.extend(headers.map(|(k, v)| {
+            (
+                HeaderName::from_str(k.as_ref()).unwrap(),
+                HeaderValue::from_str(v.as_ref()).unwrap(),
+            )
+        }));
         self
     }
 
@@ -200,17 +213,19 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
         let query = {
             let val = serde_json::to_value(obj).expect("Failed to serialize query in .set_query");
             let map = val.as_object().expect("object in .set_query was not a Map");
-            map.into_iter().map(|(k, v)| {
-                let v = match v {
-                    Value::String(s) => Cow::Borrowed(s.as_ref()),
-                    Value::Number(n) => Cow::Owned(n.to_string()),
-                    Value::Bool(b) => Cow::Owned(b.to_string()),
-                    Value::Null => Cow::Borrowed(""),
-                    _ => panic!("Invalid query value"),
-                };
-                let v = urlencoding::encode(&v);
-                urlencoding::encode(k).to_string() + "=" + &v
-            }).collect::<Vec<_>>()
+            map.into_iter()
+                .map(|(k, v)| {
+                    let v = match v {
+                        Value::String(s) => Cow::Borrowed(s.as_ref()),
+                        Value::Number(n) => Cow::Owned(n.to_string()),
+                        Value::Bool(b) => Cow::Owned(b.to_string()),
+                        Value::Null => Cow::Borrowed(""),
+                        _ => panic!("Invalid query value"),
+                    };
+                    let v = urlencoding::encode(&v);
+                    urlencoding::encode(k).to_string() + "=" + &v
+                })
+                .collect::<Vec<_>>()
                 .join("&")
         };
 
@@ -225,19 +240,38 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     /// Add a url query parameter, but keep existing parameters.
     /// # Examples
     /// ```
-    /// use httpclient::{Client, RequestBuilder, Method};
+    /// use httpclient::{Client, Method, RequestBuilder};
     /// let client = Client::new();
-    /// let mut r = RequestBuilder::new(&client, Method::GET, "http://example.com/foo?a=1".parse().unwrap());
+    /// let mut r = RequestBuilder::new(
+    ///     &client,
+    ///     Method::GET,
+    ///     "http://example.com/foo?a=1".parse().unwrap(),
+    /// );
     /// r = r.query("b", "2");
     /// assert_eq!(r.uri.to_string(), "http://example.com/foo?a=1&b=2");
     /// ```
     pub fn query(mut self, k: &str, v: &str) -> Self {
         let mut parts = std::mem::take(&mut self.uri).into_parts();
         let pq = parts.path_and_query.unwrap();
-        let pq = PathAndQuery::from_str(match pq.query() {
-            Some(q) => format!("{}?{}&{}={}", pq.path(), q, urlencoding::encode(k), urlencoding::encode(v)),
-            None => format!("{}?{}={}", pq.path(), urlencoding::encode(k), urlencoding::encode(v)),
-        }.as_str()).unwrap();
+        let pq = PathAndQuery::from_str(
+            match pq.query() {
+                Some(q) => format!(
+                    "{}?{}&{}={}",
+                    pq.path(),
+                    q,
+                    urlencoding::encode(k),
+                    urlencoding::encode(v)
+                ),
+                None => format!(
+                    "{}?{}={}",
+                    pq.path(),
+                    urlencoding::encode(k),
+                    urlencoding::encode(v)
+                ),
+            }
+            .as_str(),
+        )
+        .unwrap();
         parts.path_and_query = Some(pq);
         self.uri = Uri::from_parts(parts).unwrap();
         self
@@ -263,7 +297,9 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
             uri: self.uri,
             version: self.version,
             headers: self.headers,
-            body: self.body.ok_or_else(|| crate::Error::<Body>::Custom("No body set".to_string()))?,
+            body: self
+                .body
+                .ok_or_else(|| crate::Error::<Body>::Custom("No body set".to_string()))?,
         })
     }
 }

@@ -1,13 +1,14 @@
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
+
 use http::StatusCode;
+
 use crate::{Body, InMemoryBody, InMemoryResponse};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryBody>;
 pub type InMemoryResult<T> = Result<T, InMemoryError>;
-
 
 #[derive(Debug)]
 pub enum ProtocolError {
@@ -96,7 +97,11 @@ impl<T: Debug> Debug for Error<T> {
             Error::JsonEncoding(e) => write!(f, "JsonEncodingError: {}", e),
             Error::IoError(e) => write!(f, "IoError: {}", e),
             Error::HttpError(r) => {
-                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
+                write!(
+                    f,
+                    "HttpError {{ status: {}, headers: {:?}, body: {:?} }}",
+                    r.parts.status, r.parts.headers, r.body
+                )
             }
             Error::TooManyRedirects => write!(f, "TooManyRedirectsError"),
         }
@@ -112,7 +117,11 @@ impl<T: Debug> Display for Error<T> {
             Error::JsonEncoding(e) => write!(f, "JsonEncodingError: {}", e),
             Error::IoError(e) => write!(f, "IoError: {}", e),
             Error::HttpError(r) => {
-                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
+                write!(
+                    f,
+                    "HttpError {{ status: {}, headers: {:?}, body: {:?} }}",
+                    r.parts.status, r.parts.headers, r.body
+                )
             }
             Error::TooManyRedirects => write!(f, "Too many redirects"),
         }

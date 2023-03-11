@@ -5,14 +5,17 @@ use serde_json::Value;
 
 static REGEX: OnceCell<Regex> = OnceCell::new();
 
-trait AsLowercase   {
+trait AsLowercase {
     fn as_lowercase(&self) -> std::borrow::Cow<str>;
 }
 
 impl AsLowercase for str {
     fn as_lowercase(&self) -> std::borrow::Cow<str> {
         use std::borrow::Cow;
-        if let Some(first_uppercase) = self.bytes().position(|b| b.is_ascii_alphabetic() && !b.is_ascii_lowercase()) {
+        if let Some(first_uppercase) = self
+            .bytes()
+            .position(|b| b.is_ascii_alphabetic() && !b.is_ascii_lowercase())
+        {
             let mut string = String::with_capacity(self.len());
             string.push_str(&self[..first_uppercase]);
             for b in self[first_uppercase..].chars() {
@@ -27,13 +30,9 @@ impl AsLowercase for str {
 
 fn regex() -> &'static Regex {
     REGEX.get_or_init(|| {
-        let s = [
-            "secret",
-            "key",
-            "pkey",
-            "session",
-            "password"
-        ].map(|s| format!(r#"(\b|[-_]){s}(\b|[-_])"#)).join("|");
+        let s = ["secret", "key", "pkey", "session", "password"]
+            .map(|s| format!(r#"(\b|[-_]){s}(\b|[-_])"#))
+            .join("|");
         Regex::new(&format!(r#"(?i)({s})"#)).unwrap()
     })
 }

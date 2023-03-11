@@ -1,14 +1,14 @@
 use std::fmt::Formatter;
 use std::str::FromStr;
+
 use http::Method;
 use hyper::client::HttpConnector;
-use hyper::{Uri};
+use hyper::Uri;
 use hyper_rustls::HttpsConnector;
 use once_cell::sync::OnceCell;
-use crate::RequestBuilder;
-use crate::middleware::Middleware;
-use crate::{Error, Request, Response};
 
+use crate::middleware::Middleware;
+use crate::{Error, Request, RequestBuilder, Response};
 
 static HTTPS_CONNECTOR: OnceCell<HttpsConnector<HttpConnector>> = OnceCell::new();
 
@@ -22,11 +22,7 @@ fn https_connector() -> &'static HttpsConnector<HttpConnector> {
     })
 }
 
-static APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-);
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 pub struct Client {
     base_url: Option<String>,
@@ -40,7 +36,6 @@ impl std::fmt::Debug for Client {
         write!(f, "Client {{ base_url: {:?} }}", self.base_url)
     }
 }
-
 
 impl Client {
     pub fn new() -> Self {
@@ -70,44 +65,66 @@ impl Client {
                 return uri;
             }
         }
-        let uri = self.base_url.as_ref().map(|s| s.clone() + uri_or_path).unwrap_or_else(|| uri_or_path.to_string());
+        let uri = self
+            .base_url
+            .as_ref()
+            .map(|s| s.clone() + uri_or_path)
+            .unwrap_or_else(|| uri_or_path.to_string());
         Uri::from_str(&uri).unwrap()
     }
 
     pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(url_or_path);
-        RequestBuilder::new(self, Method::GET, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, Method::GET, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::POST, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, Method::POST, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::DELETE, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, Method::DELETE, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::PUT, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, Method::PUT, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::PATCH, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, Method::PATCH, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, method, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        RequestBuilder::new(self, method, uri).headers(
+            self.default_headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+        )
     }
 
     // pub(crate) async fn start_request(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
@@ -119,13 +136,18 @@ impl Client {
         self
     }
 
-    pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
-        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
+    pub fn default_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(
+        mut self,
+        headers: I,
+    ) -> Self {
+        self.default_headers
+            .extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string())));
         self
     }
 
     pub fn default_header<S: AsRef<str>>(mut self, key: S, value: S) -> Self {
-        self.default_headers.push((key.as_ref().to_string(), value.as_ref().to_string()));
+        self.default_headers
+            .push((key.as_ref().to_string(), value.as_ref().to_string()));
         self
     }
 
@@ -143,13 +165,12 @@ impl Default for Client {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    
-    use crate::middleware::{RecorderMiddleware, RecorderMode};
+
     use super::*;
+    use crate::middleware::{RecorderMiddleware, RecorderMode};
 
     #[tokio::test]
     async fn test_make_request() {
@@ -157,16 +178,21 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(RecorderMiddleware::new()
-                .mode(RecorderMode::ForceNoRequests)
-            );
+            .with_middleware(RecorderMiddleware::new().mode(RecorderMode::ForceNoRequests));
 
-        let res = serde_json::to_value(client.get("/")
-            .await
-            .unwrap()
-            .json::<HashMap<String, String>>()
-            .await
-            .unwrap()).unwrap();
-        assert_eq!(res, serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
+        let res = serde_json::to_value(
+            client
+                .get("/")
+                .await
+                .unwrap()
+                .json::<HashMap<String, String>>()
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"})
+        );
     }
 }

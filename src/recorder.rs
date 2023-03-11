@@ -2,13 +2,12 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use indexmap::IndexMap;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::{InMemoryRequest, InMemoryResponse, InMemoryResult};
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestResponsePair {
@@ -23,14 +22,12 @@ pub struct RRPair {
     pub fname: String,
 }
 
-
 pub struct RequestRecorder {
     pub base_path: PathBuf,
     pub requests: Arc<RwLock<IndexMap<InMemoryRequest, InMemoryResponse>>>,
 }
 
-
-fn load_requests(path: &PathBuf) -> impl Iterator<Item=RRPair> {
+fn load_requests(path: &PathBuf) -> impl Iterator<Item = RRPair> {
     WalkDir::new(path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -42,7 +39,13 @@ fn load_requests(path: &PathBuf) -> impl Iterator<Item=RRPair> {
             RRPair {
                 request: rr.request,
                 response: rr.response,
-                fname: filepath.path().file_name().unwrap().to_str().unwrap().to_string(),
+                fname: filepath
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
             }
         })
 }
@@ -59,7 +62,8 @@ impl RequestRecorder {
         println!("Request recorder opened at {}", path.display());
         let mut requests = load_requests(&path).collect::<Vec<_>>();
         requests.sort_by_key(|rr| rr.fname.clone());
-        let requests: IndexMap<InMemoryRequest, InMemoryResponse> = requests.into_iter()
+        let requests: IndexMap<InMemoryRequest, InMemoryResponse> = requests
+            .into_iter()
             .map(|r| (r.request, r.response))
             .collect::<_>();
         println!("Loaded {} requests", requests.len());
@@ -71,8 +75,16 @@ impl RequestRecorder {
     }
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
-        println!("Looking for response for request: {:?}, {}", request, calculate_hash(request));
-        self.requests.read().unwrap().get(request).map(|c| c.clone())
+        println!(
+            "Looking for response for request: {:?}, {}",
+            request,
+            calculate_hash(request)
+        );
+        self.requests
+            .read()
+            .unwrap()
+            .get(request)
+            .map(|c| c.clone())
     }
 
     fn partial_filepath(&self, request: &InMemoryRequest) -> PathBuf {
@@ -87,15 +99,16 @@ impl RequestRecorder {
         self.requests.write().unwrap().clear();
     }
 
-    pub fn record_response(&self, mut request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
+    pub fn record_response(
+        &self,
+        mut request: InMemoryRequest,
+        mut response: InMemoryResponse,
+    ) -> InMemoryResult<()> {
         let partial_path = self.partial_filepath(&request);
         request.sanitize();
         response.sanitize();
 
-        let rr = RequestResponsePair {
-            request,
-            response,
-        };
+        let rr = RequestResponsePair { request, response };
         let stringified = serde_json::to_string_pretty(&rr).unwrap();
         let RequestResponsePair { request, response } = rr;
         let idx;
