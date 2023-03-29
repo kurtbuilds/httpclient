@@ -1,5 +1,5 @@
 use http::{HeaderMap, HeaderValue, Method, Uri, Version};
-use http::header::HeaderName;
+use http::header::{Entry, HeaderName};
 use serde::Serialize;
 use serde_json::Value;
 use std::borrow::Cow;
@@ -30,6 +30,26 @@ impl<'a, C> RequestBuilder<'a, C> {
             uri,
             headers: Default::default(),
             body: Default::default(),
+        }
+    }
+
+    pub fn form<S: Serialize>(mut self, obj: S) -> Self {
+        match self.body {
+            None => {
+                self.body = Some(InMemoryBody::Text(serde_urlencoded::to_string(obj).unwrap()));
+                self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
+                self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("html/text"));
+                self
+            }
+            Some(InMemoryBody::Text(ref mut body)) => {
+                let new_body = serde_urlencoded::to_string(obj).unwrap();
+                body.push('&');
+                body.push_str(&new_body);
+                self
+            }
+            _ => {
+                panic!("Cannot add form to non-form body");
+            }
         }
     }
     /// Overwrite the current body with the provided JSON object.
@@ -164,10 +184,18 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     pub fn cookie(mut self, key: &str, value: &str) -> Self {
-        self.headers.insert(
-            hyper::header::COOKIE,
-            HeaderValue::from_str(&format!("{}={}", key, value)).unwrap(),
-        );
+        match self.headers.entry(hyper::header::COOKIE) {
+            Entry::Occupied(mut e) =>  {
+                let v = e.get_mut();
+                *v = HeaderValue::from_str(&format!("{}; {}={}", v.to_str().unwrap(), key, value)).unwrap();
+            }
+            Entry::Vacant(_) => {
+                self.headers.insert(
+                    hyper::header::COOKIE,
+                    HeaderValue::from_str(&format!("{}={}", key, value)).unwrap(),
+                );
+            }
+        }
         self
     }
 

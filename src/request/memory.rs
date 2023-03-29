@@ -173,7 +173,6 @@ mod tests {
     use std::hash::{Hash, Hasher};
     use super::*;
 
-
     #[test]
     fn test_request_serialization_roundtrip() {
         #[derive(Serialize, Deserialize, Debug)]
