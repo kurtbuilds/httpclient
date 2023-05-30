@@ -23,7 +23,7 @@ impl InMemoryResponse {
         self.body.text()
     }
 
-    pub fn json<U: DeserializeOwned>(self) -> InMemoryResult<U> {
+    pub fn json<U: DeserializeOwned>(self) -> serde_json::Result<U> {
         self.body.json()
     }
 

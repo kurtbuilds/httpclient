@@ -1,47 +1,40 @@
-use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 use http::StatusCode;
 use crate::{Body, InMemoryBody, InMemoryResponse};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-pub type InMemoryError = Error<InMemoryBody>;
+pub type InMemoryError = Error<InMemoryResponse>;
 pub type InMemoryResult<T> = Result<T, InMemoryError>;
 
 
 #[derive(Debug)]
 pub enum ProtocolError {
-    HttpProtocol(hyper::Error),
-    Utf8(FromUtf8Error),
-    JsonEncoding(serde_json::Error),
+    ConnectionError(hyper::Error),
+    Utf8Error(FromUtf8Error),
+    JsonError(serde_json::Error),
+    IoError(std::io::Error),
+    TooManyRedirects,
 }
 
-impl StdError for ProtocolError {}
+impl std::error::Error for ProtocolError {}
 
 impl Display for ProtocolError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProtocolError::HttpProtocol(e) => write!(f, "HttpProtocolError: {}", e),
-            ProtocolError::Utf8(e) => write!(f, "Utf8Error: {}", e),
-            ProtocolError::JsonEncoding(e) => write!(f, "JsonEncodingError: {}", e),
+            ProtocolError::ConnectionError(e) => write!(f, "ConnectionError: {}", e),
+            ProtocolError::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
+            ProtocolError::JsonError(e) => write!(f, "JsonEncodingError: {}", e),
+            ProtocolError::IoError(e) => write!(f, "IoError: {}", e),
+            ProtocolError::TooManyRedirects => write!(f, "TooManyRedirects"),
         }
     }
 }
 
-pub enum Error<T = Body> {
-    Custom(String),
-    TooManyRedirects,
-    HttpProtocol(hyper::Error),
-    Utf8Error(FromUtf8Error),
-    JsonEncoding(serde_json::Error),
-    IoError(std::io::Error),
-    HttpError(crate::Response<T>),
-}
-
-impl<T> Error<T> {
-    pub fn custom(msg: &str) -> Self {
-        Error::Custom(msg.to_string())
-    }
+#[derive(Debug)]
+pub enum Error<T = crate::Response> {
+    Protocol(ProtocolError),
+    HttpError(T),
 }
 
 impl Error {
@@ -53,7 +46,7 @@ impl Error {
         }
     }
 
-    pub async fn into_memory(self) -> Error<InMemoryBody> {
+    pub async fn into_memory(self) -> InMemoryError {
         match self {
             Error::HttpError(r) => {
                 let (parts, body) = r.into_parts();
@@ -63,12 +56,23 @@ impl Error {
                 };
                 Error::HttpError(InMemoryResponse::from_parts(parts, body))
             }
-            Error::Custom(e) => Error::Custom(e),
-            Error::TooManyRedirects => Error::TooManyRedirects,
-            Error::HttpProtocol(h) => Error::HttpProtocol(h),
-            Error::Utf8Error(u) => Error::Utf8Error(u),
-            Error::JsonEncoding(e) => Error::JsonEncoding(e),
-            Error::IoError(i) => Error::IoError(i),
+            Error::Protocol(e) => Error::Protocol(e),
+        }
+    }
+}
+
+impl InMemoryError {
+    pub fn transform_error<T>(self) -> Error<T>
+        where
+            T: TryFrom<InMemoryResponse>,
+            T::Error: Into<Error<T>>,
+    {
+        match self {
+            InMemoryError::Protocol(e) => Error::Protocol(e),
+            InMemoryError::HttpError(e) => match e.try_into() {
+                Ok(r) => Error::HttpError(r),
+                Err(e) => e.into(),
+            }
         }
     }
 }
@@ -77,28 +81,7 @@ impl From<InMemoryError> for Error {
     fn from(value: InMemoryError) -> Self {
         match value {
             Error::HttpError(r) => Error::HttpError(r.into()),
-            Error::Custom(e) => Error::Custom(e),
-            Error::TooManyRedirects => Error::TooManyRedirects,
-            Error::HttpProtocol(h) => Error::HttpProtocol(h),
-            Error::Utf8Error(u) => Error::Utf8Error(u),
-            Error::JsonEncoding(e) => Error::JsonEncoding(e),
-            Error::IoError(i) => Error::IoError(i),
-        }
-    }
-}
-
-impl<T: Debug> Debug for Error<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Custom(msg) => write!(f, "Custom: {}", msg),
-            Error::HttpProtocol(e) => write!(f, "HttpProtocolError: {}", e),
-            Error::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
-            Error::JsonEncoding(e) => write!(f, "JsonEncodingError: {}", e),
-            Error::IoError(e) => write!(f, "IoError: {}", e),
-            Error::HttpError(r) => {
-                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
-            }
-            Error::TooManyRedirects => write!(f, "TooManyRedirectsError"),
+            Error::Protocol(e) => Error::Protocol(e),
         }
     }
 }
@@ -106,75 +89,64 @@ impl<T: Debug> Debug for Error<T> {
 impl<T: Debug> Display for Error<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Custom(msg) => write!(f, "{}", msg),
-            Error::HttpProtocol(e) => write!(f, "HttpProtocolError: {}", e),
-            Error::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
-            Error::JsonEncoding(e) => write!(f, "JsonEncodingError: {}", e),
-            Error::IoError(e) => write!(f, "IoError: {}", e),
-            Error::HttpError(r) => {
-                write!(f, "HttpError {{ status: {}, headers: {:?}, body: {:?} }}", r.parts.status, r.parts.headers, r.body)
-            }
-            Error::TooManyRedirects => write!(f, "Too many redirects"),
+            Error::HttpError(r) => write!(f, "HttpError {{ res: {:?} }}", r),
+            Error::Protocol(p) => write!(f, "ProtocolError: {}", p),
         }
     }
 }
 
-impl<T: Debug> StdError for Error<T> {}
+impl<T: Debug> std::error::Error for Error<T> {}
 
 impl serde::de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
-        Error::Custom(msg.to_string())
+        Error::Protocol(ProtocolError::JsonError(serde_json::Error::custom(&msg.to_string())))
     }
 }
 
 impl<T> From<serde_json::Error> for Error<T> {
     fn from(value: serde_json::Error) -> Self {
-        Error::JsonEncoding(value)
+        Error::Protocol(ProtocolError::JsonError(value))
     }
 }
 
 impl<T> From<std::io::Error> for Error<T> {
     fn from(value: std::io::Error) -> Self {
-        Error::IoError(value)
+        Error::Protocol(ProtocolError::IoError(value))
     }
 }
 
 impl<T> From<hyper::Error> for Error<T> {
     fn from(value: hyper::Error) -> Self {
-        Error::HttpProtocol(value)
+        Error::Protocol(ProtocolError::ConnectionError(value))
     }
 }
 
 impl<T> From<FromUtf8Error> for Error<T> {
     fn from(value: FromUtf8Error) -> Self {
-        Error::Utf8Error(value)
+        Error::Protocol(ProtocolError::Utf8Error(value))
     }
 }
 
 impl<T> From<ProtocolError> for Error<T> {
     fn from(value: ProtocolError) -> Self {
-        match value {
-            ProtocolError::HttpProtocol(e) => Error::HttpProtocol(e),
-            ProtocolError::Utf8(e) => Error::Utf8Error(e),
-            ProtocolError::JsonEncoding(e) => Error::JsonEncoding(e),
-        }
+        Error::Protocol(value)
     }
 }
 
 impl From<hyper::Error> for ProtocolError {
     fn from(value: hyper::Error) -> Self {
-        Self::HttpProtocol(value)
+        Self::ConnectionError(value)
     }
 }
 
 impl From<serde_json::Error> for ProtocolError {
     fn from(value: serde_json::Error) -> Self {
-        Self::JsonEncoding(value)
+        Self::JsonError(value)
     }
 }
 
 impl From<FromUtf8Error> for ProtocolError {
     fn from(value: FromUtf8Error) -> Self {
-        Self::Utf8(value)
+        Self::Utf8Error(value)
     }
 }

@@ -105,7 +105,7 @@ impl<'a> RequestBuilder<'a> {
 
     /// Normally, we have to `await` the body as well. This convenience method makes the body
     /// available immediately.
-    pub fn send_awaiting_body(self) -> BoxFuture<'a, crate::Result<InMemoryResponse, crate::Error<InMemoryBody>>> {
+    pub fn send_awaiting_body(self) -> BoxFuture<'a, crate::InMemoryResult<InMemoryResponse>> {
         Box::pin(async move {
             let res = self.send().await;
             let res = match res {
@@ -283,16 +283,6 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     pub fn body(mut self, body: B) -> Self {
         self.body = Some(body);
         self
-    }
-
-    pub fn try_build(self) -> crate::Result<Request<B>, crate::Error> {
-        Ok(Request {
-            method: self.method,
-            uri: self.uri,
-            version: self.version,
-            headers: self.headers,
-            body: self.body.ok_or_else(|| crate::Error::<Body>::Custom("No body set".to_string()))?,
-        })
     }
 }
 

@@ -4,6 +4,7 @@ use crate::{Error, Response};
 use async_trait::async_trait;
 use http::Uri;
 use crate::client::Client;
+use crate::error::ProtocolError;
 use crate::request::{Request};
 use crate::recorder::RequestRecorder;
 
@@ -120,7 +121,7 @@ impl Middleware for RecorderMiddleware {
             }
         }
         if !self.should_request() {
-            return Err(Error::Custom("No recording found".to_string()));
+            return Err(Error::Protocol(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "No recording found"))));
         }
         let response = next.run(request.clone().into()).await?;
         let response = response.into_content().await?;
@@ -201,7 +202,7 @@ impl Middleware for FollowRedirectsMiddleware {
         let mut allowed_redirects = 10;
         while res.status().is_redirection() {
             if allowed_redirects == 0 {
-                return Err(Error::TooManyRedirects);
+                return Err(Error::Protocol(ProtocolError::TooManyRedirects));
             }
             let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
             let url = fix_url(request.url(), redirect);
