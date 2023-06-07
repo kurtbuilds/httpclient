@@ -7,7 +7,7 @@ use http::uri::PathAndQuery;
 use futures::future::BoxFuture;
 use std::future::IntoFuture;
 use std::str::FromStr;
-use crate::{Body, Client, InMemoryResponse, Request, Response, InMemoryBody};
+use crate::{Client, InMemoryResponse, Request, Response, InMemoryBody};
 use crate::middleware::Next;
 
 #[derive(Debug)]

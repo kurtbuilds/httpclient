@@ -3,7 +3,6 @@ use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde::de::{DeserializeOwned, Error};
-use crate::InMemoryResult;
 use crate::sanitize::sanitize_value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

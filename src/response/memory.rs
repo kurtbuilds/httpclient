@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde::de::{DeserializeOwned, Error};
 use serde::ser::SerializeMap;
 
-use crate::{InMemoryBody, InMemoryResult, Response, Result};
+use crate::{InMemoryBody, Response, Result};
 use crate::response::ResponseParts;
 use crate::sanitize::sanitize_headers;
 
