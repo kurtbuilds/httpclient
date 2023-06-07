@@ -7,6 +7,7 @@ use crate::client::Client;
 use crate::error::ProtocolError;
 use crate::request::{Request};
 use crate::recorder::RequestRecorder;
+use tracing::info;
 
 #[derive(Copy, Clone)]
 pub struct Next<'a> {
@@ -117,6 +118,7 @@ impl Middleware for RecorderMiddleware {
         if self.should_lookup() {
             let recorded = self.request_recorder.get_response(&request);
             if let Some(recorded) = recorded {
+                info!(url = request.url().to_string(), "Using recorded response");
                 return Ok(recorded.into());
             }
         }

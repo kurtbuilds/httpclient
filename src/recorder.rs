@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use indexmap::IndexMap;
+use tracing::{debug, info};
 
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -36,7 +37,7 @@ fn load_requests(path: &PathBuf) -> impl Iterator<Item=RRPair> {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file() && e.file_name().to_str().unwrap().ends_with(".json"))
         .map(|filepath| {
-            println!("Loading {}", filepath.path().display());
+            debug!(file=filepath.path().display().to_string(), "Loading recording");
             let f = fs::read_to_string(filepath.path()).unwrap();
             let rr: RequestResponsePair = serde_json::from_str(&f).unwrap();
             RRPair {
@@ -56,13 +57,13 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
 impl RequestRecorder {
     pub fn new() -> Self {
         let path = std::env::current_dir().unwrap().join("data").join("vcr");
-        println!("Request recorder opened at {}", path.display());
+        debug!(dir=path.display().to_string(), "Request recorder created");
         let mut requests = load_requests(&path).collect::<Vec<_>>();
         requests.sort_by_key(|rr| rr.fname.clone());
         let requests: IndexMap<InMemoryRequest, InMemoryResponse> = requests.into_iter()
             .map(|r| (r.request, r.response))
             .collect::<_>();
-        println!("Loaded {} requests", requests.len());
+        info!(num_recordings=requests.len(), dir=path.display().to_string(), "Request recorder loaded");
         let requests = Arc::new(RwLock::new(requests));
         RequestRecorder {
             base_path: path,
@@ -71,7 +72,7 @@ impl RequestRecorder {
     }
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
-        println!("Looking for response for request: {:?}, {}", request, calculate_hash(request));
+        debug!(url=request.url().to_string(), hash=calculate_hash(request), "Checking for recorded response");
         self.requests.read().unwrap().get(request).map(|c| c.clone())
     }
 
