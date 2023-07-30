@@ -24,7 +24,7 @@ impl Display for ProtocolError {
         match self {
             ProtocolError::ConnectionError(e) => write!(f, "ConnectionError: {}", e),
             ProtocolError::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
-            ProtocolError::JsonError(e) => write!(f, "JsonEncodingError: {}", e),
+            ProtocolError::JsonError(e) => write!(f, "JsonError: {}", e),
             ProtocolError::IoError(e) => write!(f, "IoError: {}", e),
             ProtocolError::TooManyRedirects => write!(f, "TooManyRedirects"),
         }
