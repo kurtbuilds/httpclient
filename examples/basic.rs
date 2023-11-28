@@ -1,3 +1,5 @@
+use httpclient::InMemoryResponseExt;
+
 #[tokio::main]
 async fn main() {
     let client = httpclient::Client::new()
@@ -5,9 +7,8 @@ async fn main() {
         ;
     let res = client.get("https://www.jsonip.com/")
         .header("secret", "foo")
-        // .send_awaiting_body()
         .await
         .unwrap();
-    let res = res.text().await.unwrap();
+    let res = res.text().unwrap();
     println!("{}", res);
 }

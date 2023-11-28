@@ -1,14 +1,15 @@
 use std::fmt::Formatter;
 use std::str::FromStr;
+
 use http::Method;
+use hyper::Uri;
 use hyper::client::HttpConnector;
-use hyper::{Uri};
 use hyper_rustls::HttpsConnector;
 use once_cell::sync::OnceCell;
-use crate::RequestBuilder;
-use crate::middleware::Middleware;
-use crate::{Error, Request, Response};
 
+use crate::{Body, RequestBuilder};
+use crate::{Error, Request, Response};
+use crate::middleware::Middleware;
 
 static HTTPS_CONNECTOR: OnceCell<HttpsConnector<HttpConnector>> = OnceCell::new();
 
@@ -131,9 +132,12 @@ impl Client {
 
     // /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
     // /// `execute` is the pub method that additionally runs middlewares.
-    pub(crate) async fn send_request(&self, request: Request) -> Result<Response, Error> {
+    pub(crate) async fn start_request(&self, request: Request) -> Result<Response, Error> {
         let res = self.inner.request(request.into()).await?;
-        Ok(Response::from(res))
+        let (parts, body) = res.into_parts();
+        let body: Body = body.into();
+        let res = Response::from_parts(parts, body);
+        Ok(res)
     }
 }
 
@@ -147,8 +151,11 @@ impl Default for Client {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    
+
+    use crate::InMemoryResponseExt;
     use crate::middleware::{RecorderMiddleware, RecorderMode};
+    use crate::ResponseExt;
+
     use super::*;
 
     #[tokio::test]
@@ -161,12 +168,14 @@ mod tests {
                 .mode(RecorderMode::ForceNoRequests)
             );
 
-        let res = serde_json::to_value(client.get("/")
+        let res = client.get("/")
+            .send()
             .await
             .unwrap()
             .json::<HashMap<String, String>>()
             .await
-            .unwrap()).unwrap();
+            .unwrap();
+        let res = serde_json::to_value(res).unwrap();
         assert_eq!(res, serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
     }
 }

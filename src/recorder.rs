@@ -2,18 +2,19 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use indexmap::IndexMap;
-use tracing::{debug, info};
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{InMemoryRequest, InMemoryResponse, InMemoryResult};
-
+use crate::response::{clone_inmemory_response, InMemoryResponseExt};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestResponsePair {
     pub request: InMemoryRequest,
+    #[serde(with = "crate::response::serde_response")]
     pub response: InMemoryResponse,
 }
 
@@ -73,7 +74,7 @@ impl RequestRecorder {
 
     pub fn get_response(&self, request: &InMemoryRequest) -> Option<InMemoryResponse> {
         debug!(url=request.url().to_string(), hash=calculate_hash(request), "Checking for recorded response");
-        self.requests.read().unwrap().get(request).map(|c| c.clone())
+        self.requests.read().unwrap().get(request).map(clone_inmemory_response)
     }
 
     fn partial_filepath(&self, request: &InMemoryRequest) -> PathBuf {

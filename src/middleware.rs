@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::{Error, Response};
+use crate::{Body, Error, Response};
 
 use async_trait::async_trait;
 use http::Uri;
@@ -8,6 +8,7 @@ use crate::error::ProtocolError;
 use crate::request::{Request};
 use crate::recorder::RequestRecorder;
 use tracing::info;
+use crate::response::{clone_inmemory_response, response_into_content};
 
 #[derive(Copy, Clone)]
 pub struct Next<'a> {
@@ -24,7 +25,7 @@ impl Next<'_> {
             };
             middleware.handle(request, next).await
         } else {
-            self.client.send_request(request).await
+            self.client.start_request(request).await
         }
     }
 }
@@ -119,16 +120,22 @@ impl Middleware for RecorderMiddleware {
             let recorded = self.request_recorder.get_response(&request);
             if let Some(recorded) = recorded {
                 info!(url = request.url().to_string(), "Using recorded response");
-                return Ok(recorded.into());
+                let (parts, body) = recorded.into_parts();
+                let body: Body = body.into();
+                let recorded = Response::from_parts(parts, body);
+                return Ok(recorded);
             }
         }
         if !self.should_request() {
             return Err(Error::Protocol(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "No recording found"))));
         }
         let response = next.run(request.clone().into()).await?;
-        let response = response.into_content().await?;
-        self.request_recorder.record_response(request, response.clone())?;
-        Ok(response.into())
+        let response = response_into_content(response).await?;
+        self.request_recorder.record_response(request, clone_inmemory_response(&response))?;
+        let (parts, body) = response.into_parts();
+        let body: Body = body.into();
+        let response = Response::from_parts(parts, body);
+        Ok(response)
     }
 }
 

@@ -1,18 +1,12 @@
-
-
 use http::HeaderValue;
-use hyper::body::{HttpBody};
-
-
-
-
-use crate::{Result};
-use crate::error::ProtocolError;
-
-mod memory;
+use hyper::body::HttpBody;
 
 pub use memory::*;
 
+use crate::Result;
+use crate::error::ProtocolError;
+
+mod memory;
 
 #[derive(Debug)]
 pub enum Body {
@@ -92,6 +86,11 @@ impl From<Body> for hyper::Body {
     }
 }
 
+impl From<hyper::Body> for Body {
+    fn from(val: hyper::Body) -> Self {
+        Body::Hyper(val)
+    }
+}
 
 #[cfg(test)]
 mod tests {

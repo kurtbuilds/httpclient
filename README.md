@@ -30,15 +30,14 @@ the example below to see it in action.
 and record/replay.
 - `httpclient` provides a built-in `Error` type that can return the Http request, which includes the status code, headers,
 and response body.
-- `httpclient` provides convenience methods that `reqwest` does not support. The most important is `send_awaiting_body`
-which awaits both the request and the response body, which greatly simplifies the scenario where you want to return
+- `httpclient` provides convenience methods that `reqwest` does not support. The most important is the `IntoFuture`
+implementation, which awaits both the request and the response body, which simplifies the scenario where you want to return
 the request body even in error cases.
 
-> **Note**: `httpclient` is under active development and is alpha quality software. While we make effort not to change public 
-APIs, we do not currently provide stability guarantees.
+### Note on Http 1.0
 
-# Examples
-
+`http` was recently upgraded to 1.0. However, `hyper_rustls` still depends on `0.2.x`. We are waiting for `hyper_rustls`
+before bumping our own dependency.
 
 ```rust
 #[tokio::main]
@@ -54,20 +53,19 @@ async fn main() {
         .header("secret", "foo")
         .await
         .unwrap();
-    // Note the default API (identical to reqwest) requires `await`ing the response body.
-    let res = res.text().await.unwrap();
+    let res = res.text().unwrap();
     
     let res = client.get("https://www.jsonip.com/")
         .header("secret", "foo")
-        .send_awaiting_body()
+        .send()
         .await
         .unwrap();
-    // By using `send_awaiting_body`, the response is loaded into memory, and we don't have to `await` it.
-    let res = res.text().unwrap();
+    // By using `send()`, we now can separately await the request body.
+    let res = res.text().await.unwrap();
 }
 ```
 # Roadmap
 
 - [x] Hide secrets in Recorder. Hash & Eq checks for requests must respect hidden values.
-- [ ] Ensure it builds on wasm32-unknown-unknown
+- [x] Ensure it builds on wasm32-unknown-unknown
 - [ ] Sanitize "sessid" in json

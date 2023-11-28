@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 use http::StatusCode;
-use crate::InMemoryResponse;
+use crate::{Body, InMemoryResponse};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryResponse>;
@@ -80,7 +80,12 @@ impl InMemoryError {
 impl From<InMemoryError> for Error {
     fn from(value: InMemoryError) -> Self {
         match value {
-            Error::HttpError(r) => Error::HttpError(r.into()),
+            Error::HttpError(r) => {
+                let (parts, body) = r.into_parts();
+                let body: Body = body.into();
+                let r = crate::Response::from_parts(parts, body);
+                Error::HttpError(r)
+            },
             Error::Protocol(e) => Error::Protocol(e),
         }
     }

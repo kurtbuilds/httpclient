@@ -94,6 +94,8 @@ impl<'a, C> RequestBuilder<'a, C> {
 }
 
 impl<'a> RequestBuilder<'a> {
+    /// There are two ways to trigger the request. Immediately using `.await` will call the IntoFuture implementation
+    /// which also awaits the body. If you want to await them separately, use this method `.send()`
     pub async fn send(self) -> crate::Result<Response> {
         let next = Next {
             client: self.client,
@@ -101,29 +103,6 @@ impl<'a> RequestBuilder<'a> {
         };
         let request = self.build();
         next.run(request.into()).await
-    }
-
-    /// Normally, we have to `await` the body as well. This convenience method makes the body
-    /// available immediately.
-    pub fn send_awaiting_body(self) -> BoxFuture<'a, crate::InMemoryResult<InMemoryResponse>> {
-        Box::pin(async move {
-            let res = self.send().await;
-            let res = match res {
-                Ok(res) => res,
-                Err(e) => return Err(e.into_memory().await),
-            };
-            let (parts, body) = res.into_parts();
-            let body = match body.into_memory().await {
-                Ok(body) => body,
-                Err(e) => return Err(e.into()),
-            };
-            let res = Response::from_parts(parts, body);
-            if res.status().is_client_error() || res.status().is_server_error() {
-                Err(crate::Error::HttpError(res))
-            } else {
-                Ok(res)
-            }
-        })
     }
 }
 
@@ -287,10 +266,27 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 }
 
 impl<'a> IntoFuture for RequestBuilder<'a, Client> {
-    type Output = crate::Result<Response>;
+    type Output = crate::InMemoryResult<InMemoryResponse>;
     type IntoFuture = BoxFuture<'a, Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(self.send())
+        Box::pin(async move {
+            let res = self.send().await;
+            let res = match res {
+                Ok(res) => res,
+                Err(e) => return Err(e.into_memory().await),
+            };
+            let (parts, body) = res.into_parts();
+            let body = match body.into_memory().await {
+                Ok(body) => body,
+                Err(e) => return Err(e.into()),
+            };
+            let res = InMemoryResponse::from_parts(parts, body);
+            if res.status().is_client_error() || res.status().is_server_error() {
+                Err(crate::Error::HttpError(res))
+            } else {
+                Ok(res)
+            }
+        })
     }
 }
