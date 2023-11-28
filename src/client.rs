@@ -152,7 +152,6 @@ impl Default for Client {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::InMemoryResponseExt;
     use crate::middleware::{RecorderMiddleware, RecorderMode};
     use crate::ResponseExt;
 

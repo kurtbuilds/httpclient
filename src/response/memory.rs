@@ -1,6 +1,5 @@
 use http::{HeaderMap, Response, StatusCode};
 use hyper::body::Bytes;
-use serde::{Deserialize, Serialize, Serializer};
 use serde::de::{DeserializeOwned, Error};
 
 use crate::{InMemoryBody, Result};
@@ -69,7 +68,7 @@ pub mod serde_response {
 
     pub fn serialize<S>(v: &InMemoryResponse, serializer: S) -> Result<S::Ok, S::Error>
         where
-            S: Serializer,
+            S: serde::Serializer,
     {
         let size = 2 + usize::from(!v.body().is_empty());
         let mut map = serializer.serialize_struct("InMemoryResponse", size)?;
@@ -93,7 +92,6 @@ pub mod serde_response {
 
         fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
             use std::borrow::Cow;
-            use std::collections::BTreeMap;
             use hyper::header::{HeaderName, HeaderValue};
 
             let mut status = None;
