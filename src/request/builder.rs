@@ -1,13 +1,14 @@
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
-use http::header::{Entry, HeaderName};
-use serde::Serialize;
-use serde_json::Value;
-use std::borrow::Cow;
-use http::uri::PathAndQuery;
-use futures::future::BoxFuture;
 use std::future::IntoFuture;
 use std::str::FromStr;
-use crate::{Client, InMemoryResponse, Request, Response, InMemoryBody};
+
+use futures::future::BoxFuture;
+use http::{HeaderMap, HeaderValue, Method, Uri, Version};
+use http::header::{Entry, HeaderName};
+use http::uri::PathAndQuery;
+use serde::Serialize;
+use serde_json::Value;
+
+use crate::{Client, InMemoryBody, InMemoryResponse, Request, Response};
 use crate::middleware::Next;
 
 #[derive(Debug)]
@@ -275,11 +276,11 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use serde::{Deserialize, Serialize};
+
     use super::*;
-    use serde::{Serialize, Deserialize};
 
     #[derive(Serialize, Deserialize)]
     pub struct TopLevel {
