@@ -150,8 +150,8 @@ mod tests {
     fn test_query() {
         let r1 = Request::build_get("http://example.com/foo/bar")
             .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
-        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
-        assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?a=b&c=d&e=");
+        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?c=d&a=b");
+        assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?c=d&a=b");
     }
 
     #[test]

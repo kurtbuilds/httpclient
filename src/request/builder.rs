@@ -36,13 +36,13 @@ impl<'a, C> RequestBuilder<'a, C> {
     pub fn form<S: Serialize>(mut self, obj: S) -> Self {
         match self.body {
             None => {
-                self.body = Some(InMemoryBody::Text(serde_urlencoded::to_string(obj).unwrap()));
+                self.body = Some(InMemoryBody::Text(serde_qs::to_string(&obj).unwrap()));
                 self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
                 self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("html/text"));
                 self
             }
             Some(InMemoryBody::Text(ref mut body)) => {
-                let new_body = serde_urlencoded::to_string(obj).unwrap();
+                let new_body = serde_qs::to_string(&obj).unwrap();
                 body.push('&');
                 body.push_str(&new_body);
                 self
@@ -204,26 +204,10 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     /// Overwrite the query with the provided value.
     pub fn set_query<S: Serialize>(mut self, obj: S) -> Self {
-        let query = {
-            let val = serde_json::to_value(obj).expect("Failed to serialize query in .set_query");
-            let map = val.as_object().expect("object in .set_query was not a Map");
-            map.into_iter().map(|(k, v)| {
-                let v = match v {
-                    Value::String(s) => Cow::Borrowed(s.as_ref()),
-                    Value::Number(n) => Cow::Owned(n.to_string()),
-                    Value::Bool(b) => Cow::Owned(b.to_string()),
-                    Value::Null => Cow::Borrowed(""),
-                    _ => panic!("Invalid query value"),
-                };
-                let v = urlencoding::encode(&v);
-                urlencoding::encode(k).to_string() + "=" + &v
-            }).collect::<Vec<_>>()
-                .join("&")
-        };
-
+        let qs = serde_qs::to_string(&obj).expect("Failed to serialize query in .set_query");
         let mut parts = std::mem::take(&mut self.uri).into_parts();
         let pq = parts.path_and_query.unwrap();
-        let pq = PathAndQuery::from_str(&format!("{}?{}", pq.path(), query)).unwrap();
+        let pq = PathAndQuery::from_str(&format!("{}?{}", pq.path(), qs)).unwrap();
         parts.path_and_query = Some(pq);
         self.uri = Uri::from_parts(parts).unwrap();
         self
@@ -288,5 +272,36 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
                 Ok(res)
             }
         })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::{Serialize, Deserialize};
+
+    #[derive(Serialize, Deserialize)]
+    pub struct TopLevel {
+        inside: Nested,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub struct Nested {
+        a: usize,
+    }
+
+    #[test]
+    fn test_query() {
+        let c = Client::new();
+        let qs = TopLevel {
+            inside: Nested {
+                a: 1,
+            }
+        };
+        let r = c.get("/api")
+            .set_query(qs)
+            .build();
+        assert_eq!(r.uri().to_string(), "/api?inside[a]=1");
     }
 }
