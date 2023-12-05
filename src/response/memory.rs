@@ -14,6 +14,8 @@ pub trait InMemoryResponseExt {
     fn bytes(self) -> Result<Bytes>;
     /// Attempt to clear sensitive information from the response.
     fn sanitize(&mut self);
+
+    fn get_cookie(&self, name: &str) -> Option<&str>;
 }
 
 impl InMemoryResponseExt for InMemoryResponse {
@@ -45,6 +47,16 @@ impl InMemoryResponseExt for InMemoryResponse {
         let h = self.headers_mut();
         sanitize_headers(h);
         self.body_mut().sanitize();
+    }
+
+    fn get_cookie(&self, name: &str) -> Option<&str> {
+        let value = self.headers().get("set-cookie")?;
+        let value = value.to_str().ok()?;
+        let cookie = cookie::Cookie::split_parse_encoded(value);
+        let cookie = cookie.into_iter()
+            .filter_map(|c| c.ok())
+            .find(|c| c.name() == name)?;
+        cookie.value_raw()
     }
 }
 

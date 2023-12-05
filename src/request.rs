@@ -131,7 +131,7 @@ impl From<Request> for hyper::Request<hyper::Body> {
 mod tests {
     use std::collections::HashMap;
 
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     use crate::Client;
 
@@ -150,8 +150,12 @@ mod tests {
     fn test_query() {
         let r1 = Request::build_get("http://example.com/foo/bar")
             .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
-        assert_eq!(r1.uri.to_string(), "http://example.com/foo/bar?c=d&a=b");
-        assert_eq!(r1.build().url().to_string(), "http://example.com/foo/bar?c=d&a=b");
+        let r1 = r1.build();
+        let value: HashMap<String, String> = serde_qs::from_str(&r1.url().query().unwrap()).unwrap();
+        assert_eq!(value.get("a"), Some(&"b".to_string()));
+        assert_eq!(value.get("c"), Some(&"d".to_string()));
+        assert_eq!(value.len(), 2);
+        assert!(r1.url().to_string().starts_with("http://example.com/foo/bar?"));
     }
 
     #[test]
