@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 use http::StatusCode;
-use crate::{Body, InMemoryResponse};
+use crate::{Body, InMemoryResponse, InMemoryResponseExt};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryResponse>;
@@ -72,6 +72,15 @@ impl InMemoryError {
             InMemoryError::HttpError(e) => match e.try_into() {
                 Ok(r) => Error::HttpError(r),
                 Err(e) => e.into(),
+            }
+        }
+    }
+
+    pub fn into_text(self) -> String {
+        match self {
+            InMemoryError::Protocol(e) => e.to_string(),
+            InMemoryError::HttpError(r) => {
+                r.text().unwrap_or_else(|e| format!("Error reading body as text: {}", e))
             }
         }
     }
