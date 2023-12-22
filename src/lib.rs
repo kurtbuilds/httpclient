@@ -1,9 +1,9 @@
 pub use ::http::{Method, StatusCode, Uri};
 
 pub use body::{Body, InMemoryBody};
-pub use client::Client;
+pub use client::{Client};
 pub use error::{Error, InMemoryError, InMemoryResult, Result};
-pub use middleware::Middleware;
+pub use middleware::{Middleware, Retry, Follow, Logger};
 pub use request::{InMemoryRequest, Request, RequestBuilder};
 pub use response::{InMemoryResponse, ResponseExt, InMemoryResponseExt};
 

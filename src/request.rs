@@ -131,7 +131,7 @@ impl From<Request> for hyper::Request<hyper::Body> {
 mod tests {
     use std::collections::HashMap;
 
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use crate::Client;
 

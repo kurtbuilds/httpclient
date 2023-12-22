@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::{Body, Error, Response};
+use crate::{Body, Error, Response, ResponseExt};
 
 use async_trait::async_trait;
 use http::Uri;
@@ -139,11 +139,10 @@ impl Middleware for RecorderMiddleware {
     }
 }
 
-#[derive(Default)]
-pub struct RetryMiddleware {}
+pub struct Retry;
 
 #[async_trait]
-impl Middleware for RetryMiddleware {
+impl Middleware for Retry {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let mut i = 0usize;
         let request = request.into_memory().await?;
@@ -161,34 +160,53 @@ impl Middleware for RetryMiddleware {
     }
 }
 
-#[derive(Default)]
-pub struct LoggerMiddleware {}
-
-impl LoggerMiddleware {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct Logger;
 
 #[async_trait]
-impl Middleware for LoggerMiddleware {
+impl Middleware for Logger {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let url = request.uri().to_string();
-        println!("Request: {:?}", request);
+        let method = request.method().as_str().to_uppercase();
+        let version = request.version();
+        let headers = request.headers()
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let body = request.body();
+        println!("Request:
+{method} {url} HTTP/{version:?}
+{headers}");
+        if !body.is_empty() {
+            println!("{:?}", body);
+        }
         let res = next.run(request).await;
-        println!("Response to {}: {:?}", url, res);
-        res
+        // let version = res.v
+        match res {
+            Err(Error::Protocol(e)) => {
+                println!("Response to {url}:\n{e}");
+                Err(Error::Protocol(e))
+            },
+            | Ok(res)
+            | Err(Error::HttpError(res)) => {
+                let version = res.version();
+                let status = res.status();
+                let headers = res.headers()
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                println!("Response to {url}:
+HTTP/{version:?} {status}
+{headers}");
+                println!("{:?}", res.body());
+                res.error_for_status()
+            }
+        }
     }
 }
 
-#[derive(Default)]
-pub struct FollowRedirectsMiddleware {}
-
-impl FollowRedirectsMiddleware {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct Follow;
 
 /// Given an original Url, redirect to the new path.
 fn fix_url(original: &Uri, redirect_url: &str) -> Uri {
@@ -204,7 +222,7 @@ fn fix_url(original: &Uri, redirect_url: &str) -> Uri {
 }
 
 #[async_trait]
-impl Middleware for FollowRedirectsMiddleware {
+impl Middleware for Follow {
     async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
         let request = request.into_memory().await?;
         let mut res = next.run(request.clone().into()).await?;
@@ -224,6 +242,16 @@ impl Middleware for FollowRedirectsMiddleware {
     }
 }
 
+pub struct Oauth2 {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_at: u64,
+}
+
+#[async_trait]
+impl Middleware for Oauth2 {
+
+}
 
 #[cfg(test)]
 mod tests {

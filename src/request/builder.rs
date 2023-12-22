@@ -8,7 +8,7 @@ use http::uri::PathAndQuery;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{Client, InMemoryBody, InMemoryResponse, Request, Response};
+use crate::{Client, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
 use crate::middleware::Next;
 
 #[derive(Debug)]
@@ -20,6 +20,7 @@ pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
     pub uri: Uri,
     pub headers: HeaderMap,
     pub body: Option<B>,
+    pub middlewares: Vec<Box<dyn Middleware>>,
 }
 
 impl<'a, C> RequestBuilder<'a, C> {
@@ -31,6 +32,7 @@ impl<'a, C> RequestBuilder<'a, C> {
             uri,
             headers: Default::default(),
             body: Default::default(),
+            middlewares: Default::default(),
         }
     }
 
@@ -100,7 +102,7 @@ impl<'a> RequestBuilder<'a> {
     pub async fn send(self) -> crate::Result<Response> {
         let next = Next {
             client: self.client,
-            middlewares: self.client.middlewares.as_slice(),
+            middlewares: self.middlewares.as_slice(),
         };
         let request = self.build();
         next.run(request.into()).await
@@ -129,6 +131,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
             uri: Default::default(),
             headers: Default::default(),
             body: Default::default(),
+            middlewares: Default::default(),
         }
     }
 
@@ -246,6 +249,16 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     /// Warning: Does not set content-type!
     pub fn body(mut self, body: B) -> Self {
         self.body = Some(body);
+        self
+    }
+
+    pub fn set_middlewares(mut self, middlewares: Vec<Box<dyn Middleware>>) -> Self {
+        self.middlewares = middlewares;
+        self
+    }
+
+    pub fn middleware(mut self, middleware: impl Middleware) -> Self {
+        self.middlewares.push(Box::new(middleware));
         self
     }
 }

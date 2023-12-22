@@ -36,6 +36,16 @@ pub struct Client {
     inner: hyper::Client<HttpsConnector<HttpConnector>, hyper::Body>,
 }
 
+/**
+what are the options?
+1. ServiceClient provides a OauthMiddleware.
+2. We want a way to pass in a partial middlewares list.
+3. but the order is funky. we'd want something like
+    - recorder
+    - oauth
+    - retry
+    - follow
+*/
 impl std::fmt::Debug for Client {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Client {{ base_url: {:?} }}", self.base_url)
@@ -79,36 +89,42 @@ impl Client {
         let uri = self.build_uri(url_or_path);
         RequestBuilder::new(self, Method::GET, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::POST, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::DELETE, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PUT, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PATCH, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, method, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .set_middlewares(self.middlewares.clone())
     }
 
     // pub(crate) async fn start_request(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
