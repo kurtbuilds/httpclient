@@ -243,10 +243,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     pub fn content_type(mut self, content_type: &str) -> Self {
-        self.headers.insert(
-            hyper::header::CONTENT_TYPE,
-            HeaderValue::from_str(content_type).unwrap(),
-        );
+        self.headers.insert(header::CONTENT_TYPE, content_type.parse().unwrap());
         self
     }
 
@@ -261,8 +258,8 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
         self
     }
 
-    pub fn middleware(mut self, middleware: impl Middleware + 'static) -> Self {
-        self.middlewares.push(Arc::new(middleware));
+    pub fn middleware(mut self, middleware: Arc<dyn Middleware>) -> Self {
+        self.middlewares.push(middleware);
         self
     }
 }
