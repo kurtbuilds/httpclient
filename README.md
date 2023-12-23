@@ -34,6 +34,10 @@ and response body.
 implementation, which awaits both the request and the response body, which simplifies the scenario where you want to return
 the request body even in error cases.
 
+## Oauth2
+
+For Oauth2, use `Oauth2Flow` and the `Oauth2` middleware from `httpclient_oauth2`.
+
 ### Note on Http 1.0
 
 `http` was recently upgraded to 1.0. However, `hyper_rustls` still depends on `0.2.x`. We are waiting for `hyper_rustls`

@@ -7,23 +7,22 @@ use http::Uri;
 
 pub use recorder::*;
 
-use crate::{Body, Error, InMemoryRequest, Response, ResponseExt};
+use crate::{Body, Error, InMemoryRequest, Response, ResponseExt, Result};
 use crate::client::Client;
 use crate::error::ProtocolError;
 
 mod recorder;
-mod oauth2;
 
 pub type MiddlewareStack = Vec<Arc<dyn Middleware>>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Next<'a> {
-    pub(crate) client: &'a Client,
+    pub client: &'a Client,
     pub(crate) middlewares: &'a [Arc<dyn Middleware>],
 }
 
 impl Next<'_> {
-    pub async fn run(self, request: InMemoryRequest) -> Result<Response, Error> {
+    pub async fn run(self, request: InMemoryRequest) -> Result {
         if let Some((middleware, rest)) = self.middlewares.split_first() {
             let next = Next {
                 client: self.client,
@@ -42,7 +41,7 @@ impl Next<'_> {
 
 #[async_trait]
 pub trait Middleware: Send + Sync + Debug {
-    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result {
         next.run(request).await
     }
 }
@@ -56,7 +55,7 @@ pub struct Retry;
 
 #[async_trait]
 impl Middleware for Retry {
-    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result {
         let mut i = 0usize;
         loop {
             match next.run(request.clone().into()).await {

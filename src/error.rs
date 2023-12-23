@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 use http::StatusCode;
-use crate::{Body, InMemoryResponse, InMemoryResponseExt};
+use crate::{Body, InMemoryResponse, InMemoryResponseExt, Response};
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T = Response, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryResponse>;
 pub type InMemoryResult<T> = Result<T, InMemoryError>;
 
