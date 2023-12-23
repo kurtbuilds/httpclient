@@ -1,9 +1,9 @@
 use http::{HeaderMap, HeaderValue};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use regex::Regex;
 use serde_json::Value;
 
-static REGEX: OnceCell<Regex> = OnceCell::new();
+static REGEX: OnceLock<Regex> = OnceLock::new();
 
 trait AsLowercase   {
     fn as_lowercase(&self) -> std::borrow::Cow<str>;

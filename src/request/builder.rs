@@ -1,10 +1,12 @@
 use std::future::IntoFuture;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use http::{HeaderMap, HeaderValue, Method, Uri, Version};
 use http::header::{Entry, HeaderName};
 use http::uri::PathAndQuery;
+use hyper::header;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -20,7 +22,7 @@ pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
     pub uri: Uri,
     pub headers: HeaderMap,
     pub body: Option<B>,
-    pub middlewares: Vec<Box<dyn Middleware>>,
+    pub middlewares: Vec<Arc<dyn Middleware>>,
 }
 
 impl<'a, C> RequestBuilder<'a, C> {
@@ -40,8 +42,8 @@ impl<'a, C> RequestBuilder<'a, C> {
         match self.body {
             None => {
                 self.body = Some(InMemoryBody::Text(serde_qs::to_string(&obj).unwrap()));
-                self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-                self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("html/text"));
+                self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
+                self.headers.entry(header::ACCEPT).or_insert(HeaderValue::from_static("html/text"));
                 self
             }
             Some(InMemoryBody::Text(ref mut body)) => {
@@ -58,8 +60,8 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Overwrite the current body with the provided JSON object.
     pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(InMemoryBody::Json(serde_json::to_value(obj).unwrap()));
-        self.headers.entry(&hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        self.headers.entry(hyper::header::ACCEPT).or_insert(HeaderValue::from_static("application/json"));
+        self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
+        self.headers.entry(header::ACCEPT).or_insert(HeaderValue::from_static("application/json"));
         self
     }
 
@@ -84,14 +86,14 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
     pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
         self.body = Some(InMemoryBody::Bytes(bytes));
-        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
+        self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
         self
     }
 
     /// Sets content-type to `text/plain` and the body to the supplied text.
     pub fn text(mut self, text: String) -> Self {
         self.body = Some(InMemoryBody::Text(text));
-        self.headers.entry(hyper::header::CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
+        self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
         self
     }
 }
@@ -100,11 +102,12 @@ impl<'a> RequestBuilder<'a> {
     /// There are two ways to trigger the request. Immediately using `.await` will call the IntoFuture implementation
     /// which also awaits the body. If you want to await them separately, use this method `.send()`
     pub async fn send(self) -> crate::Result<Response> {
+        let client = self.client;
+        let (request, middlewares) = self.into_req_and_middleware();
         let next = Next {
-            client: self.client,
-            middlewares: self.middlewares.as_slice(),
+            client,
+            middlewares: &middlewares,
         };
-        let request = self.build();
         next.run(request.into()).await
     }
 }
@@ -119,6 +122,16 @@ impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
             headers: self.headers,
             body: self.body.unwrap_or_default(),
         }
+    }
+
+    pub fn into_req_and_middleware(self) -> (Request<B>, Vec<Arc<dyn Middleware>>) {
+        (Request {
+            method: self.method,
+            uri: self.uri,
+            version: self.version,
+            headers: self.headers,
+            body: self.body.unwrap_or_default(),
+        }, self.middlewares)
     }
 }
 
@@ -168,7 +181,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     pub fn cookie(mut self, key: &str, value: &str) -> Self {
         match self.headers.entry(hyper::header::COOKIE) {
-            Entry::Occupied(mut e) =>  {
+            Entry::Occupied(mut e) => {
                 let v = e.get_mut();
                 *v = HeaderValue::from_str(&format!("{}; {}={}", v.to_str().unwrap(), key, value)).unwrap();
             }
@@ -183,26 +196,17 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     pub fn bearer_auth(mut self, token: &str) -> Self {
-        self.headers.insert(
-            hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
-        );
+        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap());
         self
     }
 
     pub fn token_auth(mut self, token: &str) -> Self {
-        self.headers.insert(
-            hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Token {}", token)).unwrap(),
-        );
+        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Token {}", token)).unwrap());
         self
     }
 
     pub fn basic_auth(mut self, token: &str) -> Self {
-        self.headers.insert(
-            hyper::header::AUTHORIZATION,
-            hyper::header::HeaderValue::from_str(&format!("Basic {}", token)).unwrap(),
-        );
+        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Basic {}", token)).unwrap());
         self
     }
 
@@ -252,13 +256,13 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
         self
     }
 
-    pub fn set_middlewares(mut self, middlewares: Vec<Box<dyn Middleware>>) -> Self {
+    pub fn set_middlewares(mut self, middlewares: Vec<Arc<dyn Middleware>>) -> Self {
         self.middlewares = middlewares;
         self
     }
 
-    pub fn middleware(mut self, middleware: impl Middleware) -> Self {
-        self.middlewares.push(Box::new(middleware));
+    pub fn middleware(mut self, middleware: impl Middleware + 'static) -> Self {
+        self.middlewares.push(Arc::new(middleware));
         self
     }
 }

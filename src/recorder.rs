@@ -25,12 +25,11 @@ pub struct RRPair {
     pub fname: String,
 }
 
-
+#[derive(Debug, Clone)]
 pub struct RequestRecorder {
     pub base_path: PathBuf,
     pub requests: Arc<RwLock<IndexMap<InMemoryRequest, InMemoryResponse>>>,
 }
-
 
 fn load_requests(path: &PathBuf) -> impl Iterator<Item=RRPair> {
     WalkDir::new(path)

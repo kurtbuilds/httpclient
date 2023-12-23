@@ -306,7 +306,6 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "indexmap",
- "once_cell",
  "regex",
  "serde",
  "serde_json",

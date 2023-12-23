@@ -5,13 +5,13 @@ use http::Method;
 use hyper::Uri;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
-use once_cell::sync::OnceCell;
+use std::sync::{Arc, OnceLock};
 
 use crate::{Body, RequestBuilder};
 use crate::{Error, Request, Response};
-use crate::middleware::Middleware;
+use crate::middleware::{Middleware, MiddlewareStack};
 
-static HTTPS_CONNECTOR: OnceCell<HttpsConnector<HttpConnector>> = OnceCell::new();
+static HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
 fn https_connector() -> &'static HttpsConnector<HttpConnector> {
     HTTPS_CONNECTOR.get_or_init(|| {
@@ -32,8 +32,8 @@ static APP_USER_AGENT: &str = concat!(
 pub struct Client {
     base_url: Option<String>,
     default_headers: Vec<(String, String)>,
-    pub(crate) middlewares: Vec<Box<dyn Middleware>>,
-    inner: hyper::Client<HttpsConnector<HttpConnector>, hyper::Body>,
+    pub(crate) middlewares: MiddlewareStack,
+    pub(crate) inner: hyper::Client<HttpsConnector<HttpConnector>, hyper::Body>,
 }
 
 /**
@@ -71,7 +71,7 @@ impl Client {
     }
 
     pub fn with_middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
-        self.middlewares.push(Box::new(middleware));
+        self.middlewares.push(Arc::new(middleware));
         self
     }
 
@@ -126,10 +126,6 @@ impl Client {
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .set_middlewares(self.middlewares.clone())
     }
-
-    // pub(crate) async fn start_request(&self, builder: RequestBuilder<'_>) -> Result<Response, Error> {
-    //
-    // }
 
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = Vec::new();
