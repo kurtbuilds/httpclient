@@ -1,15 +1,14 @@
 use std::fmt::Formatter;
 use std::str::FromStr;
-
-use http::Method;
-use hyper::Uri;
-use hyper::client::HttpConnector;
-use hyper_rustls::HttpsConnector;
 use std::sync::{Arc, OnceLock};
 
-use crate::{Body, RequestBuilder};
-use crate::{Error, Request, Response};
+use http::Method;
+use hyper::client::HttpConnector;
+use hyper::Uri;
+use hyper_rustls::HttpsConnector;
+
 use crate::middleware::{Middleware, MiddlewareStack};
+use crate::RequestBuilder;
 
 static HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
@@ -75,6 +74,21 @@ impl Client {
         self
     }
 
+    pub fn no_default_headers(mut self) -> Self {
+        self.default_headers = Vec::new();
+        self
+    }
+
+    pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
+        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
+        self
+    }
+
+    pub fn default_header<S: AsRef<str>>(mut self, key: S, value: S) -> Self {
+        self.default_headers.push((key.as_ref().to_string(), value.as_ref().to_string()));
+        self
+    }
+
     fn build_uri(&self, uri_or_path: &str) -> Uri {
         if let Ok(uri) = Uri::from_str(uri_or_path) {
             if uri.scheme().is_some() && uri.host().is_some() {
@@ -127,30 +141,6 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
-    pub fn no_default_headers(mut self) -> Self {
-        self.default_headers = Vec::new();
-        self
-    }
-
-    pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
-        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
-        self
-    }
-
-    pub fn default_header<S: AsRef<str>>(mut self, key: S, value: S) -> Self {
-        self.default_headers.push((key.as_ref().to_string(), value.as_ref().to_string()));
-        self
-    }
-
-    // /// This is the internal method to actually send the request. It assumes that middlewares have already been executed.
-    // /// `execute` is the pub method that additionally runs middlewares.
-    pub(crate) async fn start_request(&self, request: Request) -> Result<Response, Error> {
-        let res = self.inner.request(request.into()).await?;
-        let (parts, body) = res.into_parts();
-        let body: Body = body.into();
-        let res = Response::from_parts(parts, body);
-        Ok(res)
-    }
 }
 
 impl Default for Client {
@@ -159,12 +149,11 @@ impl Default for Client {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use crate::middleware::{RecorderMiddleware, RecorderMode};
+    use crate::middleware::{Recorder, RecorderMode};
     use crate::ResponseExt;
 
     use super::*;
@@ -175,7 +164,7 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(RecorderMiddleware::new()
+            .with_middleware(Recorder::new()
                 .mode(RecorderMode::ForceNoRequests)
             );
 

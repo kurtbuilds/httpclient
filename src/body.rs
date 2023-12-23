@@ -71,14 +71,23 @@ impl From<InMemoryBody> for Body {
         Body::InMemory(value)
     }
 }
+
 impl From<Body> for hyper::Body {
     fn from(val: Body) -> Self {
         match val {
             Body::Hyper(body) => body,
-            Body::InMemory(InMemoryBody::Empty) => hyper::Body::empty(),
-            Body::InMemory(InMemoryBody::Text(s)) => hyper::Body::from(s),
-            Body::InMemory(InMemoryBody::Bytes(b)) => hyper::Body::from(b),
-            Body::InMemory(InMemoryBody::Json(value)) => {
+            Body::InMemory(body) => body.into(),
+        }
+    }
+}
+
+impl From<InMemoryBody> for hyper::Body {
+    fn from(val: InMemoryBody) -> Self {
+        match val {
+            InMemoryBody::Empty => hyper::Body::empty(),
+            InMemoryBody::Text(s) => hyper::Body::from(s),
+            InMemoryBody::Bytes(b) => hyper::Body::from(b),
+            InMemoryBody::Json(value) => {
                 let b = serde_json::to_vec(&value).unwrap();
                 hyper::Body::from(b)
             },

@@ -5,11 +5,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::Uri;
 
-use crate::{Error, Response, ResponseExt};
+pub use recorder::*;
+
+use crate::{Body, Error, InMemoryRequest, Response, ResponseExt};
 use crate::client::Client;
 use crate::error::ProtocolError;
-use crate::request::Request;
-pub use recorder::*;
 
 mod recorder;
 mod oauth2;
@@ -23,7 +23,7 @@ pub struct Next<'a> {
 }
 
 impl Next<'_> {
-    pub async fn run(self, request: Request) -> Result<Response, Error> {
+    pub async fn run(self, request: InMemoryRequest) -> Result<Response, Error> {
         if let Some((middleware, rest)) = self.middlewares.split_first() {
             let next = Next {
                 client: self.client,
@@ -31,27 +31,33 @@ impl Next<'_> {
             };
             middleware.handle(request, next).await
         } else {
-            self.client.start_request(request).await
+            let res = self.client.inner.request(request.into()).await?;
+            let (parts, body) = res.into_parts();
+            let body: Body = body.into();
+            let res = Response::from_parts(parts, body);
+            Ok(res)
         }
     }
 }
 
 #[async_trait]
 pub trait Middleware: Send + Sync + Debug {
-    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
         next.run(request).await
     }
 }
 
 #[derive(Debug)]
 /// Retry a request up to 3 times.
+/// TODO: Make this configurable.
+/// TODO: Delays
+/// TODO: Backoff
 pub struct Retry;
 
 #[async_trait]
 impl Middleware for Retry {
-    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
         let mut i = 0usize;
-        let request = request.into_memory().await?;
         loop {
             match next.run(request.clone().into()).await {
                 Ok(response) => return Ok(response),
@@ -79,7 +85,7 @@ fn headers_to_string(headers: &http::HeaderMap) -> String {
 
 #[async_trait]
 impl Middleware for Logger {
-    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
         let url = request.uri().to_string();
         let method = request.method().as_str().to_uppercase();
         let version = request.version();
@@ -132,8 +138,7 @@ fn fix_url(original: &Uri, redirect_url: &str) -> Uri {
 
 #[async_trait]
 impl Middleware for Follow {
-    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let request = request.into_memory().await?;
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
         let mut res = next.run(request.clone().into()).await?;
         let mut allowed_redirects = 10;
         while res.status().is_redirection() {

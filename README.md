@@ -47,7 +47,7 @@ async fn main() {
         // and does not hit the remote server. The middleware has different modes to ignore recordings (to force refresh)
         // and to prevent new requests (for running a test suite).
         // The recordings are sanitized to hide secrets.
-        .with_middleware(httpclient::middleware::RecorderMiddleware::new())
+        .with_middleware(httpclient::middleware::Recorder::new())
         ;
     let res = client.get("https://www.jsonip.com/")
         .header("secret", "foo")

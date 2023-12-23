@@ -1,11 +1,11 @@
 use std::str::FromStr;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 
 use async_trait::async_trait;
 use http::{header, HeaderName, method::Method, Uri};
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, InMemoryRequest, Middleware, Request, RequestBuilder, Response, ResponseExt};
+use crate::{Error, InMemoryRequest, Middleware, RequestBuilder, Response, ResponseExt};
 use crate::middleware::Next;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,10 +82,9 @@ impl Oauth2 {
 
 #[async_trait]
 impl Middleware for Oauth2 {
-    async fn handle(&self, request: Request, next: Next<'_>) -> Result<Response, Error> {
-        let req = request.into_memory().await?;
-        let req = self.authorize(req);
-        let mut res = next.run(req.clone().into()).await?;
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
+        let req = self.authorize(request);
+        let res = next.run(req.clone().into()).await?;
         let status = res.status().as_u16();
         if ![400, 401].contains(&status) {
             return Ok(res);
@@ -98,7 +97,7 @@ impl Middleware for Oauth2 {
                 refresh_token: &self.refresh_token,
             })
             .build();
-        let mut res = next.run(refresh_req.into()).await?;
+        let res = next.run(refresh_req).await?;
         let data: RefreshResponse = res.json().await?;
         {
             let mut access_token = self.access_token.write().unwrap();

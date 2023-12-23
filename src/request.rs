@@ -127,6 +127,19 @@ impl From<Request> for hyper::Request<hyper::Body> {
     }
 }
 
+impl From<InMemoryRequest> for hyper::Request<hyper::Body> {
+    fn from(value: InMemoryRequest) -> Self {
+        let mut builder = http::Request::builder()
+            .version(value.version)
+            .method(value.method)
+            .uri(value.uri);
+        *builder.headers_mut().unwrap() = value.headers;
+        builder
+            .body(value.body.into())
+            .unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
