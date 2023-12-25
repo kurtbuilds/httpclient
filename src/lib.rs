@@ -18,9 +18,15 @@ pub mod middleware;
 mod body;
 mod sanitize;
 
-static GLOBAL_CLIENT: OnceLock<Client> = OnceLock::new();
+static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
+
+/// Use this to customize the shared client.
+/// Must be called before any requests are made, otherwise it will have no effect.
+pub fn init_shared_client(client: Client) {
+    let _ = SHARED_CLIENT.set(client);
+}
 
 /// Use the shared, global client
 pub fn client() -> &'static Client {
-    GLOBAL_CLIENT.get_or_init(|| Client::new())
+    SHARED_CLIENT.get_or_init(|| Client::new())
 }

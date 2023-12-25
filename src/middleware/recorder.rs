@@ -3,11 +3,11 @@ use std::sync::OnceLock;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::{Body, Error, InMemoryRequest, Middleware, Response};
+use crate::{Error, InMemoryRequest, Middleware, Response};
 use crate::error::ProtocolError;
 use crate::middleware::Next;
 use crate::recorder::RequestRecorder;
-use crate::response::{clone_inmemory_response, response_into_content};
+use crate::response::{clone_inmemory_response, mem_response_into_hyper, response_into_content};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Debug)]
 pub enum RecorderMode {
@@ -88,10 +88,7 @@ impl Middleware for Recorder {
             let recorded = recorder.get_response(&request);
             if let Some(recorded) = recorded {
                 info!(url = request.url().to_string(), "Using recorded response");
-                let (parts, body) = recorded.into_parts();
-                let body: Body = body.into();
-                let recorded = Response::from_parts(parts, body);
-                return Ok(recorded);
+                return Ok(mem_response_into_hyper(recorded));
             }
         }
         if !self.should_request() {
@@ -100,9 +97,6 @@ impl Middleware for Recorder {
         let response = next.run(request.clone().into()).await?;
         let response = response_into_content(response).await?;
         recorder.record_response(request, clone_inmemory_response(&response))?;
-        let (parts, body) = response.into_parts();
-        let body: Body = body.into();
-        let response = Response::from_parts(parts, body);
-        Ok(response)
+        Ok(mem_response_into_hyper(response))
     }
 }

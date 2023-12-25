@@ -27,6 +27,27 @@ impl Body {
         }
     }
 
+    pub async fn read_try_string(self) -> Result<InMemoryBody, ProtocolError> {
+        match self {
+            Body::InMemory(InMemoryBody::Bytes(bytes)) => {
+                let text = String::from_utf8(bytes)?;
+                Ok(InMemoryBody::Text(text))
+            }
+            Body::InMemory(m) => Ok(m),
+            Body::Hyper(hyper_body) => {
+                let bytes = hyper::body::to_bytes(hyper_body).await?;
+                let text = match String::from_utf8(bytes.to_vec()) {
+                    Ok(text) => text,
+                    Err(e) => {
+                        let bytes = e.into_bytes();
+                        return Ok(InMemoryBody::Bytes(bytes));
+                    }
+                };
+                Ok(InMemoryBody::Text(text))
+            }
+        }
+    }
+
     pub async fn into_memory(self) -> Result<InMemoryBody, ProtocolError> {
         match self {
             Body::InMemory(m) => Ok(m),

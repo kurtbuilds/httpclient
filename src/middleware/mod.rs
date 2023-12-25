@@ -7,7 +7,7 @@ use http::Uri;
 
 pub use recorder::*;
 
-use crate::{Body, Error, InMemoryRequest, Response, ResponseExt, Result};
+use crate::{Body, Error, InMemoryBody, InMemoryRequest, Response, ResponseExt, Result};
 use crate::client::Client;
 use crate::error::ProtocolError;
 
@@ -74,10 +74,10 @@ impl Middleware for Retry {
 #[derive(Debug)]
 pub struct Logger;
 
-fn headers_to_string(headers: &http::HeaderMap) -> String {
+fn headers_to_string(headers: &http::HeaderMap, dir: char) -> String {
     headers
         .iter()
-        .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap()))
+        .map(|(k, v)| format!("{dir} {}: {}", k, v.to_str().unwrap()))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -88,30 +88,35 @@ impl Middleware for Logger {
         let url = request.uri().to_string();
         let method = request.method().as_str().to_uppercase();
         let version = request.version();
-        let headers = headers_to_string(request.headers());
+        let headers = headers_to_string(request.headers(), '>');
         let body = request.body();
-        println!("Request:
-{method} {url} HTTP/{version:?}
+        println!(">>> Request:
+> {method} {url} {version:?}
 {headers}");
         if !body.is_empty() {
             println!("{:?}", body);
         }
         let res = next.run(request).await;
-        // let version = res.v
         match res {
             Err(Error::Protocol(e)) => {
-                println!("Response to {url}:\n{e}");
+                println!("<<< Response to {url}:\n{e}");
                 Err(Error::Protocol(e))
             },
             | Ok(res)
             | Err(Error::HttpError(res)) => {
                 let version = res.version();
                 let status = res.status();
-                let headers = headers_to_string(res.headers());
-                println!("Response to {url}:
-HTTP/{version:?} {status}
+                let headers = headers_to_string(res.headers(), '<');
+                println!("<<< Response to {url}:
+< {version:?} {status}
 {headers}");
-                println!("{:?}", res.body());
+                let (parts, body) = res.into_parts();
+                let body = body.read_try_string().await?;
+                match &body {
+                    InMemoryBody::Text(text) => println!("{}", text),
+                    _ => println!("{:?}", body),
+                }
+                let res = Response::from_parts(parts, body.into());
                 res.error_for_status()
             }
         }
