@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::time::Duration;
 
 use async_trait::async_trait;
+use cookie::time;
+use cookie::time::format_description::well_known::Rfc2822;
 use http::Uri;
 
 pub use recorder::*;
@@ -53,15 +56,37 @@ pub trait Middleware: Send + Sync + Debug {
 /// TODO: Backoff
 pub struct Retry;
 
+fn calc_delay(err: &Error) -> Option<Duration> {
+    match err {
+        Error::Protocol(_) => None,
+        Error::HttpError(err) => {
+            let Some(v) = err.headers().get(http::header::RETRY_AFTER) else { return None; };
+            let retry_after = v.to_str().unwrap();
+            if let Some(retry_after) = retry_after.parse().ok() {
+                Some(Duration::from_secs(retry_after))
+            } else if let Some(dt) = time::OffsetDateTime::parse(retry_after, &Rfc2822).ok() {
+                let dur = dt - time::OffsetDateTime::now_utc();
+                Some(dur.try_into().unwrap())
+            } else {
+                None
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl Middleware for Retry {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result {
         let mut i = 0usize;
+        i += 1;
         loop {
             match next.run(request.clone().into()).await {
                 Ok(response) => return Ok(response),
                 Err(err) => {
-                    if i == 3 {
+                    if let Some(delay) = calc_delay(&err) {
+                        tokio::time::sleep(delay).await;
+                    }
+                    if i >= 3 {
                         return Err(err);
                     }
                     i += 1;
@@ -105,7 +130,7 @@ impl Middleware for Logger {
             Err(Error::Protocol(e)) => {
                 println!("<<< Response to {url}:\n{e}");
                 Err(Error::Protocol(e))
-            },
+            }
             | Ok(res)
             | Err(Error::HttpError(res)) => {
                 let version = res.version();

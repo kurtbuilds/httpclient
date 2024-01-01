@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 pub use body::{Body, InMemoryBody};
 pub use client::{Client};
 pub use error::{Error, InMemoryError, InMemoryResult, Result};
-pub use middleware::{Middleware, Retry, Follow, Logger, Next};
+pub use middleware::{Middleware, Retry, Follow, Logger, Recorder, Next};
 pub use request::{InMemoryRequest, Request, RequestBuilder};
 pub use response::{InMemoryResponse, ResponseExt, InMemoryResponseExt};
 pub use http::{header, header::HeaderName, Uri, Method, StatusCode};
