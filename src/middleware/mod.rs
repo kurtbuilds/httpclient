@@ -94,7 +94,11 @@ impl Middleware for Logger {
 > {method} {url} {version:?}
 {headers}");
         if !body.is_empty() {
-            println!("{:?}", body);
+            match body {
+                InMemoryBody::Text(s) => println!("{}", s),
+                InMemoryBody::Json(o) => println!("{}", serde_json::to_string(&o).unwrap()),
+                _ => println!("{:?}", body),
+            }
         }
         let res = next.run(request).await;
         match res {
@@ -114,6 +118,7 @@ impl Middleware for Logger {
                 let body = body.read_try_string().await?;
                 match &body {
                     InMemoryBody::Text(text) => println!("{}", text),
+                    InMemoryBody::Json(o) => println!("{}", serde_json::to_string(&o).unwrap()),
                     _ => println!("{:?}", body),
                 }
                 let res = Response::from_parts(parts, body.into());
