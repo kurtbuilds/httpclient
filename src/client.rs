@@ -28,6 +28,7 @@ static APP_USER_AGENT: &str = concat!(
     env!("CARGO_PKG_VERSION"),
 );
 
+#[derive(Clone)]
 pub struct Client {
     base_url: Option<String>,
     default_headers: Vec<(String, String)>,
