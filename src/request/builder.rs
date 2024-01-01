@@ -273,7 +273,7 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
             let res = self.send().await;
             let res = match res {
                 Ok(res) => res,
-                Err(e) => return Err(e.into_memory().await),
+                Err(e) => return Err(e.into_content().await),
             };
             let (parts, body) = res.into_parts();
             let body = match body.into_memory().await {

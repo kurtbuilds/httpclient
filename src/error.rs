@@ -46,11 +46,12 @@ impl Error {
         }
     }
 
-    pub async fn into_memory(self) -> InMemoryError {
+    pub async fn into_content(self) -> InMemoryError {
         match self {
             Error::HttpError(r) => {
                 let (parts, body) = r.into_parts();
-                let body = match body.into_memory().await {
+                let content_type = parts.headers.get(http::header::CONTENT_TYPE);
+                let body = match body.into_content_type(content_type).await {
                     Ok(body) => body,
                     Err(e) => return e.into(),
                 };

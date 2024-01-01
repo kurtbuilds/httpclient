@@ -27,27 +27,6 @@ impl Body {
         }
     }
 
-    pub async fn read_try_string(self) -> Result<InMemoryBody, ProtocolError> {
-        match self {
-            Body::InMemory(InMemoryBody::Bytes(bytes)) => {
-                let text = String::from_utf8(bytes)?;
-                Ok(InMemoryBody::Text(text))
-            }
-            Body::InMemory(m) => Ok(m),
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let text = match String::from_utf8(bytes.to_vec()) {
-                    Ok(text) => text,
-                    Err(e) => {
-                        let bytes = e.into_bytes();
-                        return Ok(InMemoryBody::Bytes(bytes));
-                    }
-                };
-                Ok(InMemoryBody::Text(text))
-            }
-        }
-    }
-
     pub async fn into_memory(self) -> Result<InMemoryBody, ProtocolError> {
         match self {
             Body::InMemory(m) => Ok(m),
@@ -71,10 +50,13 @@ impl Body {
                     }
                     Some("application/octet-stream") => Ok(InMemoryBody::Bytes(bytes.to_vec())),
                     _ if bytes.is_empty() => Ok(InMemoryBody::Empty),
-                    _ => {
-                        let text = String::from_utf8(bytes.to_vec())?;
-                        Ok(InMemoryBody::Text(text))
-                    },
+                    _ => match String::from_utf8(bytes.to_vec()) {
+                        Ok(text) => Ok(InMemoryBody::Text(text)),
+                        Err(e) => {
+                            let bytes = e.into_bytes();
+                            Ok(InMemoryBody::Bytes(bytes))
+                        }
+                    }
                 }
             }
         }
@@ -111,7 +93,7 @@ impl From<InMemoryBody> for hyper::Body {
             InMemoryBody::Json(value) => {
                 let b = serde_json::to_vec(&value).unwrap();
                 hyper::Body::from(b)
-            },
+            }
         }
     }
 }

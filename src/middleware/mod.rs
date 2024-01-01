@@ -140,7 +140,8 @@ impl Middleware for Logger {
 < {version:?} {status}
 {headers}");
                 let (parts, body) = res.into_parts();
-                let body = body.read_try_string().await?;
+                let content_type = parts.headers.get(http::header::CONTENT_TYPE);
+                let body = body.into_content_type(content_type).await?;
                 match &body {
                     InMemoryBody::Text(text) => println!("{}", text),
                     InMemoryBody::Json(o) => println!("{}", serde_json::to_string(&o).unwrap()),
