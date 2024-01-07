@@ -6,6 +6,7 @@ use crate::{Body, InMemoryResponse, InMemoryResponseExt, Response};
 pub type Result<T = Response, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryResponse>;
 pub type InMemoryResult<T> = Result<T, InMemoryError>;
+pub type ProtocolResult<T> = Result<T, ProtocolError>;
 
 
 #[derive(Debug)]
@@ -15,6 +16,7 @@ pub enum ProtocolError {
     JsonError(serde_json::Error),
     IoError(std::io::Error),
     TooManyRedirects,
+    TooManyRetries,
 }
 
 impl std::error::Error for ProtocolError {}
@@ -27,12 +29,13 @@ impl Display for ProtocolError {
             ProtocolError::JsonError(e) => write!(f, "JsonError: {}", e),
             ProtocolError::IoError(e) => write!(f, "IoError: {}", e),
             ProtocolError::TooManyRedirects => write!(f, "TooManyRedirects"),
+            ProtocolError::TooManyRetries => write!(f, "TooManyRetries"),
         }
     }
 }
 
 #[derive(Debug)]
-pub enum Error<T = crate::Response> {
+pub enum Error<T = Response> {
     Protocol(ProtocolError),
     HttpError(T),
 }
@@ -124,9 +127,9 @@ impl<T> From<serde_json::Error> for Error<T> {
     }
 }
 
-impl<T> From<std::io::Error> for Error<T> {
+impl From<std::io::Error> for ProtocolError {
     fn from(value: std::io::Error) -> Self {
-        Error::Protocol(ProtocolError::IoError(value))
+        ProtocolError::IoError(value)
     }
 }
 

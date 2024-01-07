@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use walkdir::WalkDir;
 
-use crate::{InMemoryRequest, InMemoryResponse, InMemoryResult};
+use crate::{InMemoryRequest, InMemoryResponse};
+use crate::error::ProtocolResult;
 use crate::response::{clone_inmemory_response, InMemoryResponseExt};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,7 +89,7 @@ impl RequestRecorder {
         self.requests.write().unwrap().clear();
     }
 
-    pub fn record_response(&self, mut request: InMemoryRequest, mut response: InMemoryResponse) -> InMemoryResult<()> {
+    pub fn record_response(&self, mut request: InMemoryRequest, mut response: InMemoryResponse) -> ProtocolResult<()> {
         let partial_path = self.partial_filepath(&request);
         request.sanitize();
         response.sanitize();

@@ -6,11 +6,12 @@ use serde::de::DeserializeOwned;
 pub use memory::*;
 
 use crate::body::Body;
+use crate::error::ProtocolResult;
 use crate::Result;
 
 mod memory;
 
-pub(crate) async fn response_into_content(res: Response<Body>) -> Result<InMemoryResponse> {
+pub(crate) async fn response_into_content(res: Response<Body>) -> ProtocolResult<InMemoryResponse> {
     let (parts, body) = res.into_parts();
     let content_type = parts.headers.get(hyper::header::CONTENT_TYPE);
     let body = body.into_content_type(content_type).await?;

@@ -3,8 +3,9 @@ use std::sync::OnceLock;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::{Error, InMemoryRequest, Middleware, Response};
-use crate::error::ProtocolError;
+use crate::{InMemoryRequest, Middleware, Response};
+use crate::error::ProtocolResult;
+use crate::middleware::ProtocolError;
 use crate::middleware::Next;
 use crate::recorder::RequestRecorder;
 use crate::response::{clone_inmemory_response, mem_response_into_hyper, response_into_content};
@@ -82,7 +83,7 @@ impl Recorder {
 
 #[async_trait]
 impl Middleware for Recorder {
-    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> Result<Response, Error> {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
         let recorder = shared_recorder();
         if self.should_lookup() {
             let recorded = recorder.get_response(&request);
@@ -92,7 +93,7 @@ impl Middleware for Recorder {
             }
         }
         if !self.should_request() {
-            return Err(Error::Protocol(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "No recording found"))));
+            return Err(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "No recording found")));
         }
         let response = next.run(request.clone().into()).await?;
         let response = response_into_content(response).await?;

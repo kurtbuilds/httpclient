@@ -3,8 +3,7 @@ use hyper::body::HttpBody;
 
 pub use memory::*;
 
-use crate::Result;
-use crate::error::ProtocolError;
+use crate::error::ProtocolResult;
 
 mod memory;
 
@@ -27,7 +26,7 @@ impl Body {
         }
     }
 
-    pub async fn into_memory(self) -> Result<InMemoryBody, ProtocolError> {
+    pub async fn into_memory(self) -> ProtocolResult<InMemoryBody> {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
@@ -37,7 +36,7 @@ impl Body {
         }
     }
 
-    pub async fn into_content_type(self, content_type: Option<&HeaderValue>) -> Result<InMemoryBody, ProtocolError> {
+    pub async fn into_content_type(self, content_type: Option<&HeaderValue>) -> ProtocolResult<InMemoryBody> {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {

@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::{Client, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
+use crate::error::ProtocolResult;
 use crate::middleware::Next;
 
 #[derive(Debug)]
@@ -101,7 +102,7 @@ impl<'a, C> RequestBuilder<'a, C> {
 impl<'a> RequestBuilder<'a> {
     /// There are two ways to trigger the request. Immediately using `.await` will call the IntoFuture implementation
     /// which also awaits the body. If you want to await them separately, use this method `.send()`
-    pub async fn send(self) -> crate::Result<Response> {
+    pub async fn send(self) -> ProtocolResult<Response> {
         let client = self.client;
         let (request, middlewares) = self.into_req_and_middleware();
         let next = Next {
@@ -273,7 +274,7 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
             let res = self.send().await;
             let res = match res {
                 Ok(res) => res,
-                Err(e) => return Err(e.into_content().await),
+                Err(e) => return Err(e.into()),
             };
             let (parts, body) = res.into_parts();
             let body = match body.into_memory().await {
