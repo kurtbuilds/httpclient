@@ -10,7 +10,7 @@ use hyper::header;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{Client, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
+use crate::{Client, Error, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
 use crate::error::ProtocolResult;
 use crate::middleware::Next;
 
@@ -277,15 +277,22 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
                 Err(e) => return Err(e.into()),
             };
             let (parts, body) = res.into_parts();
-            let body = match body.into_memory().await {
+            let mut body = match body.into_memory().await {
                 Ok(body) => body,
                 Err(e) => return Err(e.into()),
             };
-            let res = InMemoryResponse::from_parts(parts, body);
-            if res.status().is_client_error() || res.status().is_server_error() {
-                Err(crate::Error::HttpError(res))
+            let status = &parts.status;
+            if status.is_client_error() || status.is_server_error() {
+                // Prevents us from showing bytes to end users in error situations.
+                if let InMemoryBody::Bytes(bytes) = body {
+                    body = match String::from_utf8(bytes) {
+                        Ok(text) => InMemoryBody::Text(text),
+                        Err(e) => InMemoryBody::Bytes(e.into_bytes()),
+                    };
+                }
+                Err(Error::HttpError(InMemoryResponse::from_parts(parts, body)))
             } else {
-                Ok(res)
+                Ok(InMemoryResponse::from_parts(parts, body))
             }
         })
     }
