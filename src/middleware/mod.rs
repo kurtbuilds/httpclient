@@ -33,7 +33,8 @@ impl Next<'_> {
             };
             middleware.handle(request, next).await
         } else {
-            let res = self.client.inner.request(request.into()).await?;
+            let request = request.into_hyper();
+            let res = self.client.inner.request(request).await?;
             let (parts, body) = res.into_parts();
             let body: Body = body.into();
             let res = Response::from_parts(parts, body);

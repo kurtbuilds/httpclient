@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use http::{HeaderMap, Version};
+use http::{HeaderMap, HeaderValue, Version};
 use hyper::{Method, Uri};
 
 pub use builder::RequestBuilder;
@@ -97,6 +97,42 @@ impl Request {
 
     pub fn build_delete(url: &str) -> RequestBuilder<(), InMemoryBody> {
         RequestBuilder::new(&(), Method::DELETE, Uri::from_str(url).expect("Invalid URL"))
+    }
+}
+
+impl InMemoryRequest {
+    /// Compared to From<InMemoryRequest> for hyper::Request<hyper::Body>,
+    /// this method additionally sets content-length header.
+    pub fn into_hyper(mut self) -> hyper::Request<hyper::Body> {
+        let mut builder = http::Request::builder()
+            .version(self.version)
+            .method(self.method)
+            .uri(self.uri);
+        let mut length = None;
+        let body = match self.body {
+            InMemoryBody::Empty => hyper::Body::empty(),
+            InMemoryBody::Bytes(b) => {
+                length = Some(b.len());
+                hyper::Body::from(b)
+            }
+            InMemoryBody::Text(s) => {
+                length = Some(s.len());
+                hyper::Body::from(s)
+            }
+            InMemoryBody::Json(val) => {
+                let s = serde_json::to_vec(&val).unwrap();
+                length = Some(s.len());
+                hyper::Body::from(s)
+            }
+        };
+        if let Some(length) = length {
+            let name = http::header::CONTENT_LENGTH;
+            self.headers.entry(name).or_insert(HeaderValue::from(length));
+        }
+        *builder.headers_mut().unwrap() = self.headers;
+        builder
+            .body(body)
+            .unwrap()
     }
 }
 
