@@ -3,6 +3,7 @@ use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde::de::{DeserializeOwned, Error};
+use crate::InMemoryResult;
 use crate::sanitize::sanitize_value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,9 +22,9 @@ impl Default for InMemoryBody {
 }
 
 impl TryInto<String> for InMemoryBody {
-    type Error = crate::Error;
+    type Error = crate::InMemoryError;
 
-    fn try_into(self) -> Result<String, Self::Error> {
+    fn try_into(self) -> InMemoryResult<String> {
         match self {
             InMemoryBody::Empty => Ok("".to_string()),
             InMemoryBody::Bytes(b) => {
@@ -38,9 +39,9 @@ impl TryInto<String> for InMemoryBody {
 }
 
 impl TryInto<Bytes> for InMemoryBody {
-    type Error = crate::Error;
+    type Error = crate::InMemoryError;
 
-    fn try_into(self) -> Result<Bytes, Self::Error> {
+    fn try_into(self) -> InMemoryResult<Bytes> {
         match self {
             InMemoryBody::Empty => Ok(Bytes::new()),
             InMemoryBody::Bytes(b) => Ok(Bytes::from(b)),
@@ -78,7 +79,7 @@ impl InMemoryBody {
         }
     }
 
-    pub fn text(self) -> crate::Result<String> {
+    pub fn text(self) -> InMemoryResult<String> {
         self.try_into()
     }
 
@@ -97,7 +98,7 @@ impl InMemoryBody {
         }
     }
 
-    pub fn bytes(self) -> crate::Result<Bytes> {
+    pub fn bytes(self) -> InMemoryResult<Bytes> {
         self.try_into()
     }
 

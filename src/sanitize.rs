@@ -32,7 +32,8 @@ fn regex() -> &'static Regex {
             "key",
             "pkey",
             "session",
-            "password"
+            "password",
+            "token",
         ].map(|s| format!(r#"(\b|[-_]){s}(\b|[-_])"#)).join("|");
         Regex::new(&format!(r#"(?i)({s})"#)).unwrap()
     })

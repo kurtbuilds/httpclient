@@ -2,16 +2,16 @@ use http::{HeaderMap, Response, StatusCode};
 use hyper::body::Bytes;
 use serde::de::{DeserializeOwned, Error};
 
-use crate::{InMemoryBody, Result};
+use crate::{InMemoryBody, InMemoryResult, Result};
 use crate::sanitize::sanitize_headers;
 
 pub type InMemoryResponse = Response<InMemoryBody>;
 
 pub trait InMemoryResponseExt {
     fn new(status: StatusCode, headers: HeaderMap, body: InMemoryBody) -> Self;
-    fn text(self) -> Result<String>;
+    fn text(self) -> InMemoryResult<String>;
     fn json<U: DeserializeOwned>(self) -> serde_json::Result<U>;
-    fn bytes(self) -> Result<Bytes>;
+    fn bytes(self) -> InMemoryResult<Bytes>;
     /// Attempt to clear sensitive information from the response.
     fn sanitize(&mut self);
 
@@ -27,7 +27,7 @@ impl InMemoryResponseExt for InMemoryResponse {
         b.body(body).unwrap()
     }
 
-    fn text(self) -> Result<String> {
+    fn text(self) -> InMemoryResult<String> {
         let (_, body) = self.into_parts();
         body.text()
     }
@@ -37,7 +37,7 @@ impl InMemoryResponseExt for InMemoryResponse {
         body.json()
     }
 
-    fn bytes(self) -> Result<Bytes> {
+    fn bytes(self) -> InMemoryResult<Bytes> {
         let (_, body) = self.into_parts();
         body.bytes()
     }

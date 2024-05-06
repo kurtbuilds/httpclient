@@ -7,7 +7,7 @@ pub use memory::*;
 
 use crate::body::Body;
 use crate::error::ProtocolResult;
-use crate::Result;
+use crate::{InMemoryResult, Result};
 
 mod memory;
 
@@ -27,10 +27,10 @@ pub(crate) fn mem_response_into_hyper(res: InMemoryResponse) -> Response<Body> {
 #[async_trait]
 pub trait ResponseExt where Self: Sized {
     fn error_for_status(self) -> Result<Self>;
-    async fn text(self) -> Result<String>;
-    async fn json<U: DeserializeOwned>(self) -> Result<U>;
+    async fn text(self) -> InMemoryResult<String>;
+    async fn json<U: DeserializeOwned>(self) -> InMemoryResult<U>;
     /// Get body as bytes.
-    async fn bytes(self) -> Result<Bytes>;
+    async fn bytes(self) -> InMemoryResult<Bytes>;
     fn get_cookie(&self, name: &str) -> Option<&str>;
 }
 
@@ -45,20 +45,20 @@ impl ResponseExt for Response<Body> {
         }
     }
 
-    async fn text(self) -> Result<String> {
+    async fn text(self) -> InMemoryResult<String> {
         let (_, body) = self.into_parts();
         let body = body.into_memory().await?;
         body.text()
     }
 
-    async fn json<U: DeserializeOwned>(self) -> Result<U> {
+    async fn json<U: DeserializeOwned>(self) -> InMemoryResult<U> {
         let (_, body) = self.into_parts();
         let body = body.into_memory().await?;
         body.json().map_err(Into::into)
     }
 
     /// Get body as bytes.
-    async fn bytes(self) -> Result<Bytes> {
+    async fn bytes(self) -> InMemoryResult<Bytes> {
         let (_, body) = self.into_parts();
         let body = body.into_memory().await?;
         body.bytes()

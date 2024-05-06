@@ -17,6 +17,7 @@ mod response;
 pub mod middleware;
 mod body;
 mod sanitize;
+pub mod multipart;
 
 static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
 
