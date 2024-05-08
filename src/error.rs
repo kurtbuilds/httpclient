@@ -40,6 +40,15 @@ pub enum Error<T = Response> {
     HttpError(T),
 }
 
+impl Error<InMemoryResponse> {
+    pub fn status(&self) -> Option<StatusCode> {
+        match self {
+            Error::HttpError(r) => Some(r.status()),
+            _ => None,
+        }
+    }
+}
+
 impl Error {
     /// Get the error status code.
     pub fn status(&self) -> Option<StatusCode> {
@@ -98,7 +107,7 @@ impl From<InMemoryError> for Error {
                 let body: Body = body.into();
                 let r = crate::Response::from_parts(parts, body);
                 Error::HttpError(r)
-            },
+            }
             Error::Protocol(e) => Error::Protocol(e),
         }
     }
