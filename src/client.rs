@@ -10,23 +10,13 @@ use hyper_rustls::HttpsConnector;
 use crate::middleware::{Middleware, MiddlewareStack};
 use crate::RequestBuilder;
 
-static HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
+static DEFAULT_HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
-fn https_connector() -> &'static HttpsConnector<HttpConnector> {
-    HTTPS_CONNECTOR.get_or_init(|| {
-        hyper_rustls::HttpsConnectorBuilder::new()
-            .with_native_roots()
-            .https_or_http()
-            .enable_http1()
-            .build()
-    })
+fn default_https_connector() -> &'static HttpsConnector<HttpConnector> {
+    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().build())
 }
 
-static APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-);
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 #[derive(Clone)]
 pub struct Client {
@@ -52,10 +42,9 @@ impl std::fmt::Debug for Client {
     }
 }
 
-
 impl Client {
     pub fn new() -> Self {
-        let https = https_connector().clone();
+        let https = default_https_connector().clone();
         Client {
             base_url: None,
             default_headers: vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
@@ -75,13 +64,19 @@ impl Client {
         self
     }
 
+    /// Set a custom TLS connector to use for making requests.
+    pub fn with_tls_connector(mut self, connector: HttpsConnector<HttpConnector>) -> Self {
+        self.inner = hyper::Client::builder().build(connector);
+        self
+    }
+
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = Vec::new();
         self
     }
 
-    pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
-        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
+    pub fn default_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
+        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string())));
         self
     }
 
@@ -141,7 +136,6 @@ impl Client {
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .set_middlewares(self.middlewares.clone())
     }
-
 }
 
 impl Default for Client {
@@ -165,18 +159,13 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(Recorder::new()
-                .mode(RecorderMode::ForceNoRequests)
-            );
+            .with_middleware(Recorder::new().mode(RecorderMode::ForceNoRequests));
 
-        let res = client.get("/")
-            .send()
-            .await
-            .unwrap()
-            .json::<HashMap<String, String>>()
-            .await
-            .unwrap();
+        let res = client.get("/").send().await.unwrap().json::<HashMap<String, String>>().await.unwrap();
         let res = serde_json::to_value(res).unwrap();
-        assert_eq!(res, serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
+        assert_eq!(
+            res,
+            serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"})
+        );
     }
 }
