@@ -8,8 +8,8 @@ pub use memory::InMemoryRequest;
 
 use crate::{Body, InMemoryBody, Result};
 
-mod memory;
 mod builder;
+mod memory;
 
 #[derive(Debug)]
 pub struct Request<T = Body> {
@@ -83,31 +83,32 @@ impl Request {
         })
     }
 
+    #[must_use]
     pub fn build_post(url: &str) -> RequestBuilder<(), InMemoryBody> {
         RequestBuilder::new(&(), Method::POST, Uri::from_str(url).expect("Invalid URL"))
     }
 
+    #[must_use]
     pub fn build_get(url: &str) -> RequestBuilder<(), InMemoryBody> {
         RequestBuilder::new(&(), Method::GET, Uri::from_str(url).expect("Invalid URL"))
     }
 
+    #[must_use]
     pub fn build_patch(url: &str) -> RequestBuilder<(), InMemoryBody> {
         RequestBuilder::new(&(), Method::PATCH, Uri::from_str(url).expect("Invalid URL"))
     }
 
+    #[must_use]
     pub fn build_delete(url: &str) -> RequestBuilder<(), InMemoryBody> {
         RequestBuilder::new(&(), Method::DELETE, Uri::from_str(url).expect("Invalid URL"))
     }
 }
 
 impl InMemoryRequest {
-    /// Compared to From<InMemoryRequest> for hyper::Request<hyper::Body>,
+    /// Compared to From<InMemoryRequest> for `hyper::Request`<hyper::Body>,
     /// this method additionally sets content-length header.
     pub fn into_hyper(mut self) -> hyper::Request<hyper::Body> {
-        let mut builder = http::Request::builder()
-            .version(self.version)
-            .method(self.method)
-            .uri(self.uri);
+        let mut builder = http::Request::builder().version(self.version).method(self.method).uri(self.uri);
         let mut length = None;
         let body = match self.body {
             InMemoryBody::Empty => hyper::Body::empty(),
@@ -130,9 +131,7 @@ impl InMemoryRequest {
             self.headers.entry(name).or_insert(HeaderValue::from(length));
         }
         *builder.headers_mut().unwrap() = self.headers;
-        builder
-            .body(body)
-            .unwrap()
+        builder.body(body).unwrap()
     }
 }
 
@@ -150,29 +149,19 @@ impl From<InMemoryRequest> for Request {
 
 impl From<Request> for hyper::Request<hyper::Body> {
     fn from(value: Request) -> Self {
-        let mut builder = http::Request::builder()
-            .version(value.version)
-            .method(value.method)
-            .uri(value.uri);
+        let mut builder = http::Request::builder().version(value.version).method(value.method).uri(value.uri);
         for (key, value) in value.headers.into_iter().filter_map(|(k, v)| Some((k?, v))) {
             builder = builder.header(key, value);
         }
-        builder
-            .body(value.body.into())
-            .unwrap()
+        builder.body(value.body.into()).unwrap()
     }
 }
 
 impl From<InMemoryRequest> for hyper::Request<hyper::Body> {
     fn from(value: InMemoryRequest) -> Self {
-        let mut builder = http::Request::builder()
-            .version(value.version)
-            .method(value.method)
-            .uri(value.uri);
+        let mut builder = http::Request::builder().version(value.version).method(value.method).uri(value.uri);
         *builder.headers_mut().unwrap() = value.headers;
-        builder
-            .body(value.body.into())
-            .unwrap()
+        builder.body(value.body.into()).unwrap()
     }
 }
 
@@ -197,10 +186,9 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let r1 = Request::build_get("http://example.com/foo/bar")
-            .set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
+        let r1 = Request::build_get("http://example.com/foo/bar").set_query(HashMap::from([("a", Some("b")), ("c", Some("d")), ("e", None)]));
         let r1 = r1.build();
-        let value: HashMap<String, String> = serde_qs::from_str(&r1.url().query().unwrap()).unwrap();
+        let value: HashMap<String, String> = serde_qs::from_str(r1.url().query().unwrap()).unwrap();
         assert_eq!(value.get("a"), Some(&"b".to_string()));
         assert_eq!(value.get("c"), Some(&"d".to_string()));
         assert_eq!(value.len(), 2);

@@ -13,8 +13,8 @@ pub enum Body {
     Hyper(hyper::Body),
 }
 
-
 impl Body {
+    #[must_use]
     pub fn new_empty() -> Self {
         Body::InMemory(InMemoryBody::new_empty())
     }
@@ -55,7 +55,7 @@ impl Body {
                             let bytes = e.into_bytes();
                             Ok(InMemoryBody::Bytes(bytes))
                         }
-                    }
+                    },
                 }
             }
         }
@@ -112,6 +112,6 @@ mod tests {
         let body = InMemoryBody::new_json(serde_json::json!({
             "foo": "bar"
         }));
-        assert_eq!(serde_json::to_string(&body).unwrap(), r#"{"foo":"bar"}"#);
+        assert_eq!(serde_json::to_string(&body).expect("Unable to deserialize JSON"), r#"{"foo":"bar"}"#);
     }
 }

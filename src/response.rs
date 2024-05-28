@@ -25,7 +25,10 @@ pub(crate) fn mem_response_into_hyper(res: InMemoryResponse) -> Response<Body> {
 }
 
 #[async_trait]
-pub trait ResponseExt where Self: Sized {
+pub trait ResponseExt
+where
+    Self: Sized,
+{
     fn error_for_status(self) -> Result<Self>;
     async fn text(self) -> InMemoryResult<String>;
     async fn json<U: DeserializeOwned>(self) -> InMemoryResult<U>;
@@ -68,9 +71,7 @@ impl ResponseExt for Response<Body> {
         let value = self.headers().get("set-cookie")?;
         let value = value.to_str().ok()?;
         let cookie = cookie::Cookie::split_parse_encoded(value);
-        let cookie = cookie.into_iter()
-            .filter_map(|c| c.ok())
-            .find(|c| c.name() == name)?;
+        let cookie = cookie.into_iter().filter_map(std::result::Result::ok).find(|c| c.name() == name)?;
         cookie.value_raw()
     }
 }

@@ -13,20 +13,10 @@ use crate::RequestBuilder;
 static HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
 fn https_connector() -> &'static HttpsConnector<HttpConnector> {
-    HTTPS_CONNECTOR.get_or_init(|| {
-        hyper_rustls::HttpsConnectorBuilder::new()
-            .with_native_roots()
-            .https_or_http()
-            .enable_http1()
-            .build()
-    })
+    HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().build())
 }
 
-static APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-);
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 #[derive(Clone)]
 pub struct Client {
@@ -38,7 +28,7 @@ pub struct Client {
 
 /**
 what are the options?
-1. ServiceClient provides a OauthMiddleware.
+1. `ServiceClient` provides a `OauthMiddleware`.
 2. We want a way to pass in a partial middlewares list.
 3. but the order is funky. we'd want something like
     - recorder
@@ -52,8 +42,8 @@ impl std::fmt::Debug for Client {
     }
 }
 
-
 impl Client {
+    #[must_use]
     pub fn new() -> Self {
         let https = https_connector().clone();
         Client {
@@ -65,41 +55,48 @@ impl Client {
     }
 
     /// Set a `base_url` so you can pass relative paths instead of full URLs.
+    #[must_use]
     pub fn base_url(mut self, base_url: &str) -> Self {
         self.base_url = Some(base_url.to_string());
         self
     }
 
+    #[must_use]
     pub fn with_middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
         self.middlewares.push(Arc::new(middleware));
         self
     }
 
+    #[must_use]
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = Vec::new();
         self
     }
 
-    pub fn default_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
-        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()) ));
+    #[must_use]
+    pub fn default_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
+        self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string())));
         self
     }
 
+    #[must_use]
     pub fn default_header<S: AsRef<str>>(mut self, key: S, value: S) -> Self {
         self.default_headers.push((key.as_ref().to_string(), value.as_ref().to_string()));
         self
     }
 
+    #[must_use]
     fn build_uri(&self, uri_or_path: &str) -> Uri {
         if let Ok(uri) = Uri::from_str(uri_or_path) {
             if uri.scheme().is_some() && uri.host().is_some() {
                 return uri;
             }
         }
-        let uri = self.base_url.as_ref().map(|s| s.clone() + uri_or_path).unwrap_or_else(|| uri_or_path.to_string());
+        let uri = self.base_url.as_ref().map_or_else(|| uri_or_path.to_string(), |s| s.clone() + uri_or_path);
         Uri::from_str(&uri).unwrap()
     }
 
+    #[must_use]
     pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(url_or_path);
         RequestBuilder::new(self, Method::GET, uri)
@@ -107,6 +104,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::POST, uri)
@@ -114,6 +112,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::DELETE, uri)
@@ -121,6 +120,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PUT, uri)
@@ -128,6 +128,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PATCH, uri)
@@ -135,13 +136,13 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, method, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .set_middlewares(self.middlewares.clone())
     }
-
 }
 
 impl Default for Client {
@@ -165,18 +166,22 @@ mod tests {
             .base_url("https://www.jsonip.com")
             .no_default_headers()
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
-            .with_middleware(Recorder::new()
-                .mode(RecorderMode::ForceNoRequests)
-            );
+            .with_middleware(Recorder::new().mode(RecorderMode::ForceNoRequests));
 
-        let res = client.get("/")
+        let res = client
+            .get("/")
             .send()
             .await
-            .unwrap()
+            .expect("Unable to send request")
             .json::<HashMap<String, String>>()
             .await
-            .unwrap();
-        let res = serde_json::to_value(res).unwrap();
-        assert_eq!(res, serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"}));
+            .expect("Unable to fetch JSON body");
+
+        let res = serde_json::to_value(res).expect("Unable to convert response to JSON");
+
+        assert_eq!(
+            res,
+            serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"})
+        );
     }
 }
