@@ -3,12 +3,12 @@ use std::sync::OnceLock;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::{InMemoryRequest, Middleware, Response};
 use crate::error::ProtocolResult;
-use crate::middleware::ProtocolError;
 use crate::middleware::Next;
+use crate::middleware::ProtocolError;
 use crate::recorder::RequestRecorder;
 use crate::response::{clone_inmemory_response, mem_response_into_hyper, response_into_content};
+use crate::{InMemoryRequest, Middleware, Response};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Debug)]
 pub enum RecorderMode {
@@ -22,28 +22,27 @@ pub enum RecorderMode {
 }
 
 impl RecorderMode {
+    #[must_use]
     pub fn should_lookup(self) -> bool {
         match self {
-            RecorderMode::RecordOrRequest => true,
             RecorderMode::IgnoreRecordings => false,
-            RecorderMode::ForceNoRequests => true,
+            RecorderMode::ForceNoRequests | RecorderMode::RecordOrRequest => true,
         }
     }
 
+    #[must_use]
     pub fn should_request(self) -> bool {
         match self {
-            RecorderMode::RecordOrRequest => true,
-            RecorderMode::IgnoreRecordings => true,
+            RecorderMode::IgnoreRecordings | RecorderMode::RecordOrRequest => true,
             RecorderMode::ForceNoRequests => false,
         }
     }
 }
 
-
 static SHARED_RECORDER: OnceLock<RequestRecorder> = OnceLock::new();
 
 pub fn shared_recorder() -> &'static RequestRecorder {
-    SHARED_RECORDER.get_or_init(|| RequestRecorder::new())
+    SHARED_RECORDER.get_or_init(RequestRecorder::new)
 }
 
 #[derive(Default, Copy, Clone, Debug)]
@@ -61,43 +60,50 @@ pub struct Recorder {
 }
 
 impl Recorder {
+    #[must_use]
     pub fn new() -> Self {
-        Self {
-            mode: Default::default(),
-        }
+        Self::default()
     }
 
+    #[must_use]
     pub fn mode(mut self, mode: RecorderMode) -> Self {
         self.mode = mode;
         self
     }
 
-    fn should_lookup(&self) -> bool {
+    fn should_lookup(self) -> bool {
         self.mode.should_lookup()
     }
 
-    fn should_request(&self) -> bool {
+    fn should_request(self) -> bool {
         self.mode.should_request()
     }
 }
 
 #[async_trait]
 impl Middleware for Recorder {
+    #[allow(clippy::similar_names)]
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
         let recorder = shared_recorder();
+
         if self.should_lookup() {
             let recorded = recorder.get_response(&request);
+
             if let Some(recorded) = recorded {
                 info!(url = request.url().to_string(), "Using recorded response");
                 return Ok(mem_response_into_hyper(recorded));
             }
         }
+
         if !self.should_request() {
             return Err(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "No recording found")));
         }
-        let response = next.run(request.clone().into()).await?;
+
+        let response = next.run(request.clone()).await?;
         let response = response_into_content(response).await?;
+
         recorder.record_response(request, clone_inmemory_response(&response))?;
+
         Ok(mem_response_into_hyper(response))
     }
 }

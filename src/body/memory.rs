@@ -1,24 +1,20 @@
+use crate::sanitize::sanitize_value;
+use crate::InMemoryResult;
 use hyper::body::Bytes;
-use std::hash::Hasher;
+use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde::de::{DeserializeOwned, Error};
-use crate::InMemoryResult;
-use crate::sanitize::sanitize_value;
+use std::hash::Hasher;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(Default)]
 pub enum InMemoryBody {
+    #[default]
     Empty,
     Bytes(Vec<u8>),
     Text(String),
     Json(Value),
-}
-
-impl Default for InMemoryBody {
-    fn default() -> Self {
-        InMemoryBody::Empty
-    }
 }
 
 impl TryInto<String> for InMemoryBody {
@@ -26,14 +22,10 @@ impl TryInto<String> for InMemoryBody {
 
     fn try_into(self) -> InMemoryResult<String> {
         match self {
-            InMemoryBody::Empty => Ok("".to_string()),
-            InMemoryBody::Bytes(b) => {
-                String::from_utf8(b)
-                    .map_err(|e| e.into())
-            }
+            InMemoryBody::Empty => Ok(String::new()),
+            InMemoryBody::Bytes(b) => String::from_utf8(b).map_err(std::convert::Into::into),
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => serde_json::to_string(&val)
-                .map_err(|e| e.into())
+            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(std::convert::Into::into),
         }
     }
 }
@@ -51,7 +43,6 @@ impl TryInto<Bytes> for InMemoryBody {
     }
 }
 
-
 impl InMemoryBody {
     pub fn new_bytes(bytes: impl Into<Vec<u8>>) -> Self {
         InMemoryBody::Bytes(bytes.into())
@@ -65,12 +56,14 @@ impl InMemoryBody {
         InMemoryBody::Json(serde_json::to_value(value).unwrap())
     }
 
+    #[must_use]
     pub fn new_empty() -> Self {
         InMemoryBody::Empty
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
-        use InMemoryBody::*;
+        use InMemoryBody::{Bytes, Empty, Json, Text};
         match self {
             Empty => true,
             Bytes(b) => b.is_empty(),
@@ -86,15 +79,9 @@ impl InMemoryBody {
     pub fn json<T: DeserializeOwned>(self) -> serde_json::Result<T> {
         match self {
             InMemoryBody::Empty => Err(serde_json::Error::custom("Empty body")),
-            InMemoryBody::Bytes(b) => {
-                serde_json::from_slice(&b)
-            }
-            InMemoryBody::Text(t) => {
-                serde_json::from_str(&t)
-            }
-            InMemoryBody::Json(v) => {
-                serde_json::from_value(v)
-            }
+            InMemoryBody::Bytes(b) => serde_json::from_slice(&b),
+            InMemoryBody::Text(t) => serde_json::from_str(&t),
+            InMemoryBody::Json(v) => serde_json::from_value(v),
         }
     }
 
@@ -104,14 +91,14 @@ impl InMemoryBody {
 
     pub fn sanitize(&mut self) {
         if let InMemoryBody::Json(value) = self {
-            sanitize_value(value)
+            sanitize_value(value);
         }
     }
 }
 
 impl std::hash::Hash for InMemoryBody {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        use InMemoryBody::*;
+        use InMemoryBody::{Bytes, Empty, Json, Text};
         match self {
             Empty => state.write_u8(0),
             Bytes(b) => {

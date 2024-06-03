@@ -1,23 +1,26 @@
-use std::sync::OnceLock;
+#![deny(clippy::all, clippy::pedantic, clippy::unwrap_used)]
+#![allow(clippy::module_name_repetitions, clippy::missing_errors_doc, clippy::missing_panics_doc)]
+
 pub use body::{Body, InMemoryBody};
-pub use client::{Client};
-pub use error::{Error, InMemoryError, InMemoryResult, Result, ProtocolError, ProtocolResult};
-pub use middleware::{Middleware, Retry, Follow, Logger, Recorder, Next};
+pub use client::Client;
+pub use error::{Error, InMemoryError, InMemoryResult, ProtocolError, ProtocolResult, Result};
+pub use http::{header, header::HeaderName, Method, StatusCode, Uri};
+pub use middleware::{Follow, Logger, Middleware, Next, Recorder, Retry};
 pub use request::{InMemoryRequest, Request, RequestBuilder};
-pub use response::{InMemoryResponse, ResponseExt, InMemoryResponseExt};
-pub use http::{header, header::HeaderName, Uri, Method, StatusCode};
+pub use response::{InMemoryResponse, InMemoryResponseExt, ResponseExt};
+use std::sync::OnceLock;
 
 pub type Response = http::Response<Body>;
 
+mod body;
 mod client;
 mod error;
+pub mod middleware;
+pub mod multipart;
 pub mod recorder;
 mod request;
 mod response;
-pub mod middleware;
-mod body;
 mod sanitize;
-pub mod multipart;
 
 static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
 
@@ -29,5 +32,5 @@ pub fn init_shared_client(client: Client) {
 
 /// Use the shared, global client
 pub fn client() -> &'static Client {
-    SHARED_CLIENT.get_or_init(|| Client::new())
+    SHARED_CLIENT.get_or_init(Client::new)
 }

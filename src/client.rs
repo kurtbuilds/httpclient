@@ -28,7 +28,7 @@ pub struct Client {
 
 /**
 what are the options?
-1. ServiceClient provides a OauthMiddleware.
+1. `ServiceClient` provides a `OauthMiddleware`.
 2. We want a way to pass in a partial middlewares list.
 3. but the order is funky. we'd want something like
     - recorder
@@ -43,6 +43,7 @@ impl std::fmt::Debug for Client {
 }
 
 impl Client {
+    #[must_use]
     pub fn new() -> Self {
         let https = default_https_connector().clone();
         Client {
@@ -54,47 +55,55 @@ impl Client {
     }
 
     /// Set a `base_url` so you can pass relative paths instead of full URLs.
+    #[must_use]
     pub fn base_url(mut self, base_url: &str) -> Self {
         self.base_url = Some(base_url.to_string());
         self
     }
 
+    #[must_use]
     pub fn with_middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
         self.middlewares.push(Arc::new(middleware));
         self
     }
 
+    #[must_use]
     /// Set a custom TLS connector to use for making requests.
     pub fn with_tls_connector(mut self, connector: HttpsConnector<HttpConnector>) -> Self {
         self.inner = hyper::Client::builder().build(connector);
         self
     }
 
+    #[must_use]
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = Vec::new();
         self
     }
 
+    #[must_use]
     pub fn default_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
         self.default_headers.extend(headers.map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string())));
         self
     }
 
+    #[must_use]
     pub fn default_header<S: AsRef<str>>(mut self, key: S, value: S) -> Self {
         self.default_headers.push((key.as_ref().to_string(), value.as_ref().to_string()));
         self
     }
 
+    #[must_use]
     fn build_uri(&self, uri_or_path: &str) -> Uri {
         if let Ok(uri) = Uri::from_str(uri_or_path) {
             if uri.scheme().is_some() && uri.host().is_some() {
                 return uri;
             }
         }
-        let uri = self.base_url.as_ref().map(|s| s.clone() + uri_or_path).unwrap_or_else(|| uri_or_path.to_string());
+        let uri = self.base_url.as_ref().map_or_else(|| uri_or_path.to_string(), |s| s.clone() + uri_or_path);
         Uri::from_str(&uri).unwrap()
     }
 
+    #[must_use]
     pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(url_or_path);
         RequestBuilder::new(self, Method::GET, uri)
@@ -102,6 +111,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::POST, uri)
@@ -109,6 +119,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::DELETE, uri)
@@ -116,6 +127,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PUT, uri)
@@ -123,6 +135,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, Method::PATCH, uri)
@@ -130,6 +143,7 @@ impl Client {
             .set_middlewares(self.middlewares.clone())
     }
 
+    #[must_use]
     pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
         let uri = self.build_uri(uri_or_path);
         RequestBuilder::new(self, method, uri)

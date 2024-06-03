@@ -1,13 +1,12 @@
+use crate::{Body, InMemoryResponse, InMemoryResponseExt, Response};
+use http::StatusCode;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
-use http::StatusCode;
-use crate::{Body, InMemoryResponse, InMemoryResponseExt, Response};
 
 pub type Result<T = Response, E = Error> = std::result::Result<T, E>;
 pub type InMemoryError = Error<InMemoryResponse>;
 pub type InMemoryResult<T> = Result<T, InMemoryError>;
 pub type ProtocolResult<T> = Result<T, ProtocolError>;
-
 
 #[derive(Debug)]
 pub enum ProtocolError {
@@ -24,10 +23,10 @@ impl std::error::Error for ProtocolError {}
 impl Display for ProtocolError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProtocolError::ConnectionError(e) => write!(f, "ConnectionError: {}", e),
-            ProtocolError::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
-            ProtocolError::JsonError(e) => write!(f, "JsonError: {}", e),
-            ProtocolError::IoError(e) => write!(f, "IoError: {}", e),
+            ProtocolError::ConnectionError(e) => write!(f, "ConnectionError: {e}"),
+            ProtocolError::Utf8Error(e) => write!(f, "Utf8Error: {e}"),
+            ProtocolError::JsonError(e) => write!(f, "JsonError: {e}"),
+            ProtocolError::IoError(e) => write!(f, "IoError: {e}"),
             ProtocolError::TooManyRedirects => write!(f, "TooManyRedirects"),
             ProtocolError::TooManyRetries => write!(f, "TooManyRetries"),
         }
@@ -41,10 +40,11 @@ pub enum Error<T = Response> {
 }
 
 impl Error<InMemoryResponse> {
+    #[must_use]
     pub fn status(&self) -> Option<StatusCode> {
         match self {
             Error::HttpError(r) => Some(r.status()),
-            _ => None,
+            Error::Protocol(_) => None,
         }
     }
 }
@@ -54,7 +54,7 @@ impl Error {
     pub fn status(&self) -> Option<StatusCode> {
         match self {
             Error::HttpError(r) => Some(r.status()),
-            _ => None,
+            Error::Protocol(_) => None,
         }
     }
 
@@ -75,26 +75,26 @@ impl Error {
 }
 
 impl InMemoryError {
+    #[must_use]
     pub fn transform_error<T>(self) -> Error<T>
-        where
-            T: TryFrom<InMemoryResponse>,
-            T::Error: Into<Error<T>>,
+    where
+        T: TryFrom<InMemoryResponse>,
+        T::Error: Into<Error<T>>,
     {
         match self {
             InMemoryError::Protocol(e) => Error::Protocol(e),
             InMemoryError::HttpError(e) => match e.try_into() {
                 Ok(r) => Error::HttpError(r),
                 Err(e) => e.into(),
-            }
+            },
         }
     }
 
+    #[must_use]
     pub fn into_text(self) -> String {
         match self {
             InMemoryError::Protocol(e) => e.to_string(),
-            InMemoryError::HttpError(r) => {
-                r.text().unwrap_or_else(|e| format!("Error reading body as text: {}", e))
-            }
+            InMemoryError::HttpError(r) => r.text().unwrap_or_else(|e| format!("Error reading body as text: {e}")),
         }
     }
 }
@@ -116,8 +116,8 @@ impl From<InMemoryError> for Error {
 impl<T: Debug> Display for Error<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::HttpError(r) => write!(f, "HttpError {{ res: {:?} }}", r),
-            Error::Protocol(p) => write!(f, "ProtocolError: {}", p),
+            Error::HttpError(r) => write!(f, "HttpError {{ res: {r:?} }}"),
+            Error::Protocol(p) => write!(f, "ProtocolError: {p}"),
         }
     }
 }
@@ -126,7 +126,7 @@ impl<T: Debug> std::error::Error for Error<T> {}
 
 impl serde::de::Error for Error {
     fn custom<T: Display>(msg: T) -> Self {
-        Error::Protocol(ProtocolError::JsonError(serde_json::Error::custom(&msg.to_string())))
+        Error::Protocol(ProtocolError::JsonError(serde_json::Error::custom(msg.to_string())))
     }
 }
 

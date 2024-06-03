@@ -107,11 +107,9 @@ impl Middleware for Retry {
 
         loop {
             i += 1;
-
             if i > self.max_retries {
                 return Err(ProtocolError::TooManyRetries);
             }
-
             match next.run(request.clone()).await {
                 Ok(res) => {
                     let status = res.status();
@@ -158,9 +156,9 @@ impl Middleware for Logger {
         );
         if !body.is_empty() {
             match body {
-                InMemoryBody::Text(s) => println!("{}", s),
+                InMemoryBody::Text(s) => println!("{s}"),
                 InMemoryBody::Json(o) => println!("{}", serde_json::to_string(&o).unwrap()),
-                _ => println!("{:?}", body),
+                _ => println!("{body:?}"),
             }
         }
         let res = next.run(request).await;
@@ -182,9 +180,9 @@ impl Middleware for Logger {
                 let content_type = parts.headers.get(http::header::CONTENT_TYPE);
                 let body = body.into_content_type(content_type).await?;
                 match &body {
-                    InMemoryBody::Text(text) => println!("{}", text),
+                    InMemoryBody::Text(text) => println!("{text}"),
                     InMemoryBody::Json(o) => println!("{}", serde_json::to_string(&o).unwrap()),
-                    _ => println!("{:?}", body),
+                    _ => println!("{body:?}"),
                 }
                 let res = Response::from_parts(parts, body.into());
                 Ok(res)
@@ -219,14 +217,12 @@ impl Middleware for Follow {
             if allowed_redirects == 0 {
                 return Err(ProtocolError::TooManyRedirects);
             }
-
             let redirect = res
                 .headers()
                 .get(http::header::LOCATION)
                 .expect("Received a 3xx status code, but no location header was sent.")
                 .to_str()
                 .unwrap();
-
             let url = fix_url(request.url(), redirect);
             let request = request.clone();
             let request = request.set_url(url);
