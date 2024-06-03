@@ -10,10 +10,10 @@ use hyper_rustls::HttpsConnector;
 use crate::middleware::{Middleware, MiddlewareStack};
 use crate::RequestBuilder;
 
-static HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
+static DEFAULT_HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
-fn https_connector() -> &'static HttpsConnector<HttpConnector> {
-    HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().build())
+fn default_https_connector() -> &'static HttpsConnector<HttpConnector> {
+    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().build())
 }
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
@@ -45,7 +45,7 @@ impl std::fmt::Debug for Client {
 impl Client {
     #[must_use]
     pub fn new() -> Self {
-        let https = https_connector().clone();
+        let https = default_https_connector().clone();
         Client {
             base_url: None,
             default_headers: vec![("User-Agent".to_string(), APP_USER_AGENT.to_string())],
@@ -64,6 +64,13 @@ impl Client {
     #[must_use]
     pub fn with_middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
         self.middlewares.push(Arc::new(middleware));
+        self
+    }
+
+    #[must_use]
+    /// Set a custom TLS connector to use for making requests.
+    pub fn with_tls_connector(mut self, connector: HttpsConnector<HttpConnector>) -> Self {
+        self.inner = hyper::Client::builder().build(connector);
         self
     }
 
@@ -168,17 +175,8 @@ mod tests {
             .default_headers(vec![("User-Agent", "test-client")].into_iter())
             .with_middleware(Recorder::new().mode(RecorderMode::ForceNoRequests));
 
-        let res = client
-            .get("/")
-            .send()
-            .await
-            .expect("Unable to send request")
-            .json::<HashMap<String, String>>()
-            .await
-            .expect("Unable to fetch JSON body");
-
-        let res = serde_json::to_value(res).expect("Unable to convert response to JSON");
-
+        let res = client.get("/").send().await.unwrap().json::<HashMap<String, String>>().await.unwrap();
+        let res = serde_json::to_value(res).unwrap();
         assert_eq!(
             res,
             serde_json::json!({"ip":"70.107.97.117","geo-ip":"https://getjsonip.com/#plus","API Help":"https://getjsonip.com/#docs"})

@@ -51,17 +51,17 @@ pub trait Middleware: Send + Sync + Debug {
 }
 
 #[derive(Debug)]
-/// Retry a request up to 3 times.
-/// TODO: Make this configurable.
-/// TODO: Delays
-/// TODO: Backoff
-pub struct Retry;
+/// Retry a request up to N times, with a default of 3.
+/// The default back-off delay is 2 seconds.
+pub struct Retry {
+    max_retries: usize,
+    backoff_delay: Duration,
+}
 
 fn calc_delay(res: &Response) -> Option<Duration> {
-    let Some(v) = res.headers().get(http::header::RETRY_AFTER) else {
-        return None;
-    };
+    let v = res.headers().get(http::header::RETRY_AFTER)?;
     let retry_after = v.to_str().unwrap();
+
     if let Ok(retry_after) = retry_after.parse() {
         Some(Duration::from_secs(retry_after))
     } else if let Ok(dt) = time::OffsetDateTime::parse(retry_after, &Rfc2822) {
@@ -72,25 +72,61 @@ fn calc_delay(res: &Response) -> Option<Duration> {
     }
 }
 
+impl Default for Retry {
+    fn default() -> Self {
+        Self {
+            backoff_delay: Duration::from_secs(2),
+            max_retries: 3,
+        }
+    }
+}
+
+impl Retry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the back-off delay between retries, if the server doesn't specify a delay.
+    pub fn backoff_delay(mut self, delay: Duration) -> Self {
+        self.backoff_delay = delay;
+        self
+    }
+
+    /// Set the maximum number of retries.
+    pub fn max_retries(mut self, max_retries: usize) -> Self {
+        self.max_retries = max_retries;
+        self
+    }
+}
+
 #[async_trait]
 impl Middleware for Retry {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
         let mut i = 0usize;
+        let mut delay = Duration::from_millis(100); // Initial delay
+
         loop {
             i += 1;
-            if i > 3 {
+            if i > self.max_retries {
                 return Err(ProtocolError::TooManyRetries);
             }
             match next.run(request.clone()).await {
                 Ok(res) => {
                     let status = res.status();
                     let status_as_u16 = status.as_u16();
+
+                    // Can't use StatusCode here, as it doesn't implement 425/TOO_EARLY
                     if !([429, 408, 425].contains(&status_as_u16) || status.is_server_error()) {
                         return Ok(res);
                     }
-                    if let Some(delay) = calc_delay(&res) {
-                        tokio::time::sleep(delay).await;
+
+                    if let Some(custom_delay) = calc_delay(&res) {
+                        delay = custom_delay;
+                    } else {
+                        delay *= 2; // Exponential back-off
                     }
+
+                    tokio::time::sleep(delay).await;
                 }
                 Err(err) => return Err(err),
             }
