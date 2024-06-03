@@ -10,9 +10,9 @@ use tokio::time::Duration;
 
 pub use recorder::*;
 
-use crate::{Body, InMemoryBody, InMemoryRequest, Response};
 use crate::client::Client;
 use crate::error::{ProtocolError, ProtocolResult};
+use crate::{Body, InMemoryBody, InMemoryRequest, Response};
 
 mod recorder;
 
@@ -51,18 +51,20 @@ pub trait Middleware: Send + Sync + Debug {
 }
 
 #[derive(Debug)]
-/// Retry a request up to 3 times.
-/// TODO: Make this configurable.
-/// TODO: Delays
-/// TODO: Backoff
-pub struct Retry;
+/// Retry a request up to N times, with a default of 3.
+/// The default back-off delay is 2 seconds.
+pub struct Retry {
+    max_retries: usize,
+    backoff_delay: Duration,
+}
 
 fn calc_delay(res: &Response) -> Option<Duration> {
-    let Some(v) = res.headers().get(http::header::RETRY_AFTER) else { return None; };
+    let v = res.headers().get(http::header::RETRY_AFTER)?;
     let retry_after = v.to_str().unwrap();
-    if let Some(retry_after) = retry_after.parse().ok() {
+
+    if let Ok(retry_after) = retry_after.parse() {
         Some(Duration::from_secs(retry_after))
-    } else if let Some(dt) = time::OffsetDateTime::parse(retry_after, &Rfc2822).ok() {
+    } else if let Ok(dt) = time::OffsetDateTime::parse(retry_after, &Rfc2822) {
         let dur = dt - time::OffsetDateTime::now_utc();
         Some(dur.try_into().unwrap())
     } else {
@@ -70,25 +72,63 @@ fn calc_delay(res: &Response) -> Option<Duration> {
     }
 }
 
+impl Default for Retry {
+    fn default() -> Self {
+        Self {
+            backoff_delay: Duration::from_secs(2),
+            max_retries: 3,
+        }
+    }
+}
+
+impl Retry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the back-off delay between retries, if the server doesn't specify a delay.
+    pub fn backoff_delay(mut self, delay: Duration) -> Self {
+        self.backoff_delay = delay;
+        self
+    }
+
+    /// Set the maximum number of retries.
+    pub fn max_retries(mut self, max_retries: usize) -> Self {
+        self.max_retries = max_retries;
+        self
+    }
+}
+
 #[async_trait]
 impl Middleware for Retry {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
         let mut i = 0usize;
+        let mut delay = Duration::from_millis(100); // Initial delay
+
         loop {
             i += 1;
-            if i > 3 {
-                return Err(ProtocolError::TooManyRetries)
+
+            if i > self.max_retries {
+                return Err(ProtocolError::TooManyRetries);
             }
-            match next.run(request.clone().into()).await {
+
+            match next.run(request.clone()).await {
                 Ok(res) => {
                     let status = res.status();
                     let status_as_u16 = status.as_u16();
+
+                    // Can't use StatusCode here, as it doesn't implement 425/TOO_EARLY
                     if !([429, 408, 425].contains(&status_as_u16) || status.is_server_error()) {
                         return Ok(res);
                     }
-                    if let Some(delay) = calc_delay(&res) {
-                        tokio::time::sleep(delay).await;
+
+                    if let Some(custom_delay) = calc_delay(&res) {
+                        delay = custom_delay;
+                    } else {
+                        delay *= 2; // Exponential back-off
                     }
+
+                    tokio::time::sleep(delay).await;
                 }
                 Err(err) => return Err(err),
             }
@@ -100,11 +140,7 @@ impl Middleware for Retry {
 pub struct Logger;
 
 fn headers_to_string(headers: &http::HeaderMap, dir: char) -> String {
-    headers
-        .iter()
-        .map(|(k, v)| format!("{dir} {}: {}", k, v.to_str().unwrap()))
-        .collect::<Vec<_>>()
-        .join("\n")
+    headers.iter().map(|(k, v)| format!("{dir} {}: {}", k, v.to_str().unwrap())).collect::<Vec<_>>().join("\n")
 }
 
 #[async_trait]
@@ -115,9 +151,11 @@ impl Middleware for Logger {
         let version = request.version();
         let headers = headers_to_string(request.headers(), '>');
         let body = request.body();
-        println!(">>> Request:
+        println!(
+            ">>> Request:
 > {method} {url} {version:?}
-{headers}");
+{headers}"
+        );
         if !body.is_empty() {
             match body {
                 InMemoryBody::Text(s) => println!("{}", s),
@@ -135,9 +173,11 @@ impl Middleware for Logger {
                 let version = res.version();
                 let status = res.status();
                 let headers = headers_to_string(res.headers(), '<');
-                println!("<<< Response to {url}:
+                println!(
+                    "<<< Response to {url}:
 < {version:?} {status}
-{headers}");
+{headers}"
+                );
                 let (parts, body) = res.into_parts();
                 let content_type = parts.headers.get(http::header::CONTENT_TYPE);
                 let body = body.into_content_type(content_type).await?;
@@ -173,18 +213,25 @@ fn fix_url(original: &Uri, redirect_url: &str) -> Uri {
 #[async_trait]
 impl Middleware for Follow {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
-        let mut res = next.run(request.clone().into()).await?;
+        let mut res = next.run(request.clone()).await?;
         let mut allowed_redirects = 10;
         while res.status().is_redirection() {
             if allowed_redirects == 0 {
                 return Err(ProtocolError::TooManyRedirects);
             }
-            let redirect = res.headers().get(http::header::LOCATION).expect("Received a 3xx status code, but no location header was sent.").to_str().unwrap();
+
+            let redirect = res
+                .headers()
+                .get(http::header::LOCATION)
+                .expect("Received a 3xx status code, but no location header was sent.")
+                .to_str()
+                .unwrap();
+
             let url = fix_url(request.url(), redirect);
             let request = request.clone();
             let request = request.set_url(url);
             allowed_redirects -= 1;
-            res = next.run(request.into()).await?;
+            res = next.run(request).await?;
         }
         Ok(res)
     }
