@@ -69,6 +69,10 @@ impl<T> Request<T> {
         let value = self.headers.get(key)?;
         value.to_str().ok()
     }
+
+    pub fn into_body(self) -> T {
+        self.body
+    }
 }
 
 impl Request {

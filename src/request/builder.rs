@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::error::ProtocolResult;
 use crate::middleware::Next;
 use crate::multipart::Form;
-use crate::{Client, Error, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
+use crate::{Client, Error, InMemoryBody, InMemoryRequest, InMemoryResponse, Middleware, Request, Response};
 
 #[derive(Debug)]
 pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
@@ -108,10 +108,11 @@ impl<'a, C> RequestBuilder<'a, C> {
     }
 
     #[must_use]
-    pub fn multipart(mut self, form: Form) -> Self {
+    pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
+        let content_type = form.full_content_type();
         self.headers
             .entry(header::CONTENT_TYPE)
-            .or_insert(HeaderValue::from_str(form.content_type.as_str()).unwrap());
+            .or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();
         let len = body.len();
         self.body = Some(InMemoryBody::Bytes(body));
