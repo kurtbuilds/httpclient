@@ -1,4 +1,3 @@
-use http::header::IntoHeaderName;
 use http::{HeaderName, HeaderValue, Uri};
 
 pub use builder::RequestBuilder;
@@ -16,6 +15,7 @@ pub trait RequestExt {
     fn path(&self) -> &str;
     fn url(&self) -> &Uri;
     fn header<H: TryInto<HeaderName>>(&self, h: H) -> Option<&HeaderValue>;
+    fn header_str<H: TryInto<HeaderName>>(&self, h: H) -> Option<&str>;
 }
 
 impl<B> RequestExt for Request<B> {
@@ -34,6 +34,11 @@ impl<B> RequestExt for Request<B> {
     fn header<H: TryInto<HeaderName>>(&self, h: H) -> Option<&HeaderValue> {
         let h = h.try_into().ok()?;
         self.headers().get(h)
+    }
+
+    fn header_str<H: TryInto<HeaderName>>(&self, h: H) -> Option<&str> {
+        self.header(h)
+            .and_then(|v| v.to_str().ok())
     }
 }
 

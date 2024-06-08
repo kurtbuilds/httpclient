@@ -10,8 +10,7 @@ use walkdir::WalkDir;
 
 use crate::error::ProtocolResult;
 use crate::request::{RequestExt};
-use crate::response::{InMemoryResponseExt};
-use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse, Request};
+use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
 use crate::sanitize::{sanitize_request, sanitize_response};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,7 +28,7 @@ pub struct Recording {
     pub filename: String,
 }
 
-pub(crate) struct HashableRequest(pub InMemoryRequest);
+pub struct HashableRequest(pub InMemoryRequest);
 
 impl std::fmt::Debug for HashableRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -181,6 +180,7 @@ mod tests {
     use super::*;
     use http::Method;
     use std::hash::DefaultHasher;
+    use http::Request;
 
     #[test]
     fn test_equal() {

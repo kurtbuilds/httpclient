@@ -1,5 +1,3 @@
-use serde::de::Error;
-
 use crate::{InMemoryBody, Request};
 
 pub type InMemoryRequest = Request<InMemoryBody>;
@@ -108,7 +106,6 @@ pub mod serde_request {
 
 #[cfg(test)]
 mod tests {
-    use std::hash::{Hash, Hasher};
     use std::io::BufWriter;
 
     use serde::{Deserialize, Serialize};
