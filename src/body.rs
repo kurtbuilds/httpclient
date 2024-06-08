@@ -36,9 +36,7 @@ impl Body {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
                 let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let content_type = content_type
-                    .and_then(|t| t.to_str().ok())
-                    .and_then(|t| t.split(';').next());
+                let content_type = content_type.and_then(|t| t.to_str().ok()).and_then(|t| t.split(';').next());
                 match content_type {
                     Some("application/json") => {
                         let value = serde_json::from_slice(&bytes)?;
@@ -102,8 +100,8 @@ impl From<hyper::Body> for Body {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_serialization() {

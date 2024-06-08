@@ -6,9 +6,9 @@ pub mod serde_request {
     use std::str::FromStr;
 
     use http::{HeaderMap, Method, Request, Uri};
-    use serde::{Deserializer, Serializer};
     use serde::de::Error;
     use serde::ser::SerializeMap;
+    use serde::{Deserializer, Serializer};
 
     use crate::{InMemoryBody, InMemoryRequest};
 

@@ -11,9 +11,9 @@ use tokio::time::Duration;
 
 pub use recorder::*;
 
-use crate::{Body, InMemoryBody, InMemoryRequest, Response, Uri};
 use crate::client::Client;
 use crate::error::{ProtocolError, ProtocolResult};
+use crate::{Body, InMemoryBody, InMemoryRequest, Response, Uri};
 
 mod recorder;
 
@@ -43,24 +43,19 @@ impl Next<'_> {
             };
             let len = body.len();
             parts.headers.insert(CONTENT_LENGTH, len.into());
-            let mut b = hyper::Request::builder()
-                .method(parts.method.as_str())
-                .uri(parts.uri.to_string());
+            let mut b = hyper::Request::builder().method(parts.method.as_str()).uri(parts.uri.to_string());
             for (k, v) in parts.headers.iter() {
                 b = b.header(k.as_str(), v.to_str().unwrap());
             }
-            let request = b.body(hyper::Body::from(body))
-                .expect("Failed to build request");
+            let request = b.body(hyper::Body::from(body)).expect("Failed to build request");
             let res = self.client.inner.request(request).await?;
             let (parts, body) = res.into_parts();
             let body: Body = body.into();
-            let mut b = Response::builder()
-                .status(parts.status.as_u16());
+            let mut b = Response::builder().status(parts.status.as_u16());
             for (k, v) in parts.headers.iter() {
                 b = b.header(k.as_str(), v.to_str().unwrap());
             }
-            let res = b.body(body)
-                .expect("Failed to build response");
+            let res = b.body(body).expect("Failed to build response");
             Ok(res)
         }
     }

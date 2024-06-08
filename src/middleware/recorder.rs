@@ -4,11 +4,11 @@ use async_trait::async_trait;
 use http::header::CONTENT_TYPE;
 use tracing::info;
 
-use crate::{Body, InMemoryRequest, InMemoryResponse, Middleware, Response};
 use crate::error::ProtocolResult;
 use crate::middleware::Next;
 use crate::middleware::ProtocolError;
 use crate::recorder::{HashableRequest, RequestRecorder};
+use crate::{Body, InMemoryRequest, InMemoryResponse, Middleware, Response};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Debug)]
 pub enum RecorderMode {

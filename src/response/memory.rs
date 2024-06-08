@@ -6,7 +6,6 @@ use crate::{InMemoryBody, InMemoryResult, Result};
 
 pub type InMemoryResponse = Response<InMemoryBody>;
 
-
 /// Attempt to clear sensitive information from the response.
 
 pub trait InMemoryResponseExt {
@@ -41,7 +40,6 @@ impl InMemoryResponseExt for InMemoryResponse {
         body.bytes()
     }
 
-
     fn get_cookie(&self, name: &str) -> Option<&str> {
         let value = self.headers().get("set-cookie")?;
         let value = value.to_str().ok()?;
@@ -55,8 +53,8 @@ pub mod serde_response {
     use std::collections::BTreeMap;
     use std::str::FromStr;
 
-    use serde::Deserializer;
     use serde::ser::SerializeStruct;
+    use serde::Deserializer;
 
     use super::{Error, HeaderMap, InMemoryBody, InMemoryResponse, Result, StatusCode};
 

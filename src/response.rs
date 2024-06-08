@@ -5,8 +5,8 @@ use serde::de::DeserializeOwned;
 
 pub use memory::*;
 
-use crate::{InMemoryResult, Result};
 use crate::body::Body;
+use crate::{InMemoryResult, Result};
 
 mod memory;
 

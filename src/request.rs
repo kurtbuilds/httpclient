@@ -37,8 +37,7 @@ impl<B> RequestExt for Request<B> {
     }
 
     fn header_str<H: TryInto<HeaderName>>(&self, h: H) -> Option<&str> {
-        self.header(h)
-            .and_then(|v| v.to_str().ok())
+        self.header(h).and_then(|v| v.to_str().ok())
     }
 }
 

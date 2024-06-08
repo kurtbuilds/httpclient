@@ -3,8 +3,8 @@ use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
 use http::Method;
-use hyper::client::HttpConnector;
 use http::Uri;
+use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 
 use crate::middleware::{Middleware, MiddlewareStack};

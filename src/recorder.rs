@@ -9,9 +9,9 @@ use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::error::ProtocolResult;
-use crate::request::{RequestExt};
-use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
+use crate::request::RequestExt;
 use crate::sanitize::{sanitize_request, sanitize_response};
+use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestResponsePair {
@@ -179,8 +179,8 @@ impl Default for RequestRecorder {
 mod tests {
     use super::*;
     use http::Method;
-    use std::hash::DefaultHasher;
     use http::Request;
+    use std::hash::DefaultHasher;
 
     #[test]
     fn test_equal() {

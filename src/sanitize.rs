@@ -1,8 +1,8 @@
+use crate::{InMemoryRequest, InMemoryResponse};
 use http::{HeaderMap, HeaderValue};
 use regex::Regex;
 use serde_json::Value;
 use std::sync::OnceLock;
-use crate::{InMemoryRequest, InMemoryResponse};
 
 static REGEX: OnceLock<Regex> = OnceLock::new();
 

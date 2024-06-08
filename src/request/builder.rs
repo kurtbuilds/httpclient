@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use http::header::{Entry, HeaderName, CONTENT_TYPE, ACCEPT, AUTHORIZATION, COOKIE};
+use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE};
 use http::uri::PathAndQuery;
 use http::{header, HeaderMap, HeaderValue, Method, Uri, Version};
 use serde::Serialize;
@@ -119,9 +119,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     #[must_use]
     pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
         let content_type = form.full_content_type();
-        self.headers
-            .entry(header::CONTENT_TYPE)
-            .or_insert(content_type.parse().unwrap());
+        self.headers.entry(header::CONTENT_TYPE).or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();
         let len = body.len();
         self.body = Some(InMemoryBody::Bytes(body));
@@ -146,13 +144,9 @@ impl<'a> RequestBuilder<'a> {
 
 impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
     pub fn build(self) -> Request<B> {
-        let mut b = Request::builder()
-            .method(self.method)
-            .uri(self.uri)
-            .version(self.version);
+        let mut b = Request::builder().method(self.method).uri(self.uri).version(self.version);
         *b.headers_mut().unwrap() = self.headers;
-        b.body(self.body.unwrap_or_default())
-            .expect("Failed to build request in .build")
+        b.body(self.body.unwrap_or_default()).expect("Failed to build request in .build")
     }
 
     pub fn into_req_and_middleware(self) -> (Request<B>, Vec<Arc<dyn Middleware>>) {
@@ -192,13 +186,13 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     #[must_use]
-    pub fn set_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
+    pub fn set_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
         self.headers = HeaderMap::new();
         self.headers(headers)
     }
 
     #[must_use]
-    pub fn headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
+    pub fn headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
         self.headers
             .extend(headers.map(|(k, v)| (HeaderName::from_str(k.as_ref()).unwrap(), HeaderValue::from_str(v.as_ref()).unwrap())));
         self
@@ -273,9 +267,9 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
                 Some(q) => format!("{}?{}&{}={}", pq.path(), q, urlencoding::encode(k), urlencoding::encode(v)),
                 None => format!("{}?{}={}", pq.path(), urlencoding::encode(k), urlencoding::encode(v)),
             }
-                .as_str(),
+            .as_str(),
         )
-            .unwrap();
+        .unwrap();
         parts.path_and_query = Some(pq);
         self.uri = Uri::from_parts(parts).unwrap();
         self
