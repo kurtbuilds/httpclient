@@ -18,6 +18,14 @@ pub static ACCEPT_JSON: HeaderValue = HeaderValue::from_static("application/json
 pub static CONTENT_JSON: HeaderValue = HeaderValue::from_static("application/json; charset=utf-8");
 pub static CONTENT_URL_ENCODED: HeaderValue = HeaderValue::from_static("application/x-www-form-urlencoded");
 
+/// Provide a custom request builder for several reasons:
+/// - The required reason is have it implement IntoFuture, so that it can be directly awaited.
+/// - The secondary reasons is directly storing client & middlewares on the RequestBuilder. In
+///   theory it could be stored on Request.extensions, but that's less explicit.
+/// - It's also nice to not require implementing an Extension trait to get all the convenience methods
+///   on http::request::RequestBuilder
+///
+/// Middlewares are used in order (first to last).
 #[derive(Debug)]
 pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
     client: &'a C,
@@ -104,7 +112,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     #[must_use]
     pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
         self.body = Some(InMemoryBody::Bytes(bytes));
-        self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
+        self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
         self
     }
 
@@ -112,14 +120,14 @@ impl<'a, C> RequestBuilder<'a, C> {
     #[must_use]
     pub fn text(mut self, text: String) -> Self {
         self.body = Some(InMemoryBody::Text(text));
-        self.headers.entry(header::CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
+        self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
         self
     }
 
     #[must_use]
     pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
         let content_type = form.full_content_type();
-        self.headers.entry(header::CONTENT_TYPE).or_insert(content_type.parse().unwrap());
+        self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();
         let len = body.len();
         self.body = Some(InMemoryBody::Bytes(body));
