@@ -2,6 +2,7 @@ use http::{HeaderMap, HeaderValue};
 use regex::Regex;
 use serde_json::Value;
 use std::sync::OnceLock;
+use crate::{InMemoryRequest, InMemoryResponse};
 
 static REGEX: OnceLock<Regex> = OnceLock::new();
 
@@ -36,6 +37,7 @@ fn regex() -> &'static Regex {
 }
 
 pub static SANITIZED_VALUE: &str = "**********";
+pub static SANITIZED_HEADER_VALUE: HeaderValue = HeaderValue::from_static(SANITIZED_VALUE);
 
 pub fn should_sanitize(key: &str) -> bool {
     let key = key.as_lowercase();
@@ -67,10 +69,20 @@ pub fn sanitize_value(value: &mut Value) {
 }
 
 pub fn sanitize_headers(headers: &mut HeaderMap) {
-    let sanitized: HeaderValue = SANITIZED_VALUE.parse().expect("Unable to parse sanitized value");
     for (key, value) in headers.iter_mut() {
         if should_sanitize(key.as_str()) {
-            *value = sanitized.clone();
+            *value = SANITIZED_HEADER_VALUE.clone();
         }
     }
+}
+
+pub fn sanitize_request(req: &mut InMemoryRequest) {
+    sanitize_headers(req.headers_mut());
+    req.body_mut().sanitize();
+}
+
+pub fn sanitize_response(res: &mut InMemoryResponse) {
+    let h = res.headers_mut();
+    sanitize_headers(h);
+    res.body_mut().sanitize();
 }

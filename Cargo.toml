@@ -16,13 +16,13 @@ async-trait = "0.1.52"
 cookie = { version = "0.18.0", features = [ "percent-encode" ] }
 encoding_rs = "0.8.30"
 futures = "0.3.25"
-http = "0.2.11"
+http = { version = "1.1.0" }
 indexmap = "2.1.0"
 rand = "0.8.5"
 regex = "1.7.1"
 serde = { version = "1.0.136", features = [ "derive" ] }
 serde_json = "1.0.79"
-serde_qs = "0.12.0"
+serde_qs = "0.13.0"
 tracing = "0.1.37"
 urlencoding = "2.1.0"
 walkdir = "2.3.2"

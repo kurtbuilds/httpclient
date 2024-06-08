@@ -1,6 +1,6 @@
-use std::str::FromStr;
 use http::{header, HeaderMap, StatusCode};
 use rand::Rng;
+use std::str::FromStr;
 
 use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse, InMemoryResponseExt};
 
@@ -45,12 +45,10 @@ fn parse_response(text: &str) -> Option<InMemoryResponse> {
 
     let (headers, text) = parse_headers(text)?;
     let body = InMemoryBody::Text(text.to_string());
-    let mut res = http::Response::builder()
-        .status(status);
+    let mut res = http::Response::builder().status(status);
     *res.headers_mut().unwrap() = headers;
     res.body(body).ok()
 }
-
 
 pub struct Form<B> {
     pub boundary: String,
@@ -202,13 +200,13 @@ impl Part<InMemoryRequest> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Request;
     use super::*;
+    use crate::Request;
 
     #[test]
     fn test_to_bytes() {
         let mut form = Form::new();
-        let part = Part::new(Request::build_get("/farm/v1/animals/pony").build());
+        let part = Part::new(Request::builder().uri("/farm/v1/animals/pony").body(InMemoryBody::Empty).unwrap());
         form.parts.push(part);
 
         let boundary = form.boundary.clone();

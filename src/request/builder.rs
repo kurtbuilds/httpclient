@@ -3,10 +3,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use http::header::{Entry, HeaderName};
+use http::header::{Entry, HeaderName, CONTENT_TYPE, ACCEPT, AUTHORIZATION, COOKIE};
 use http::uri::PathAndQuery;
-use http::{HeaderMap, HeaderValue, Method, Uri, Version};
-use hyper::header;
+use http::{header, HeaderMap, HeaderValue, Method, Uri, Version};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -14,6 +13,10 @@ use crate::error::ProtocolResult;
 use crate::middleware::Next;
 use crate::multipart::Form;
 use crate::{Client, Error, InMemoryBody, InMemoryRequest, InMemoryResponse, Middleware, Request, Response};
+
+pub static ACCEPT_JSON: HeaderValue = HeaderValue::from_static("application/json");
+pub static CONTENT_JSON: HeaderValue = HeaderValue::from_static("application/json; charset=utf-8");
+pub static CONTENT_URL_ENCODED: HeaderValue = HeaderValue::from_static("application/x-www-form-urlencoded");
 
 #[derive(Debug)]
 pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
@@ -25,6 +28,15 @@ pub struct RequestBuilder<'a, C = Client, B = InMemoryBody> {
     pub headers: HeaderMap,
     pub body: Option<B>,
     pub middlewares: Vec<Arc<dyn Middleware>>,
+}
+
+impl<'a> RequestBuilder<'a, ()> {
+    pub fn get(url: &str) -> RequestBuilder<'a, ()> {
+        RequestBuilder::new(&(), Method::GET, Uri::from_str(url).expect("Invalid URL"))
+    }
+    pub fn post(url: &str) -> RequestBuilder<'a, ()> {
+        RequestBuilder::new(&(), Method::POST, Uri::from_str(url).expect("Invalid URL"))
+    }
 }
 
 impl<'a, C> RequestBuilder<'a, C> {
@@ -44,11 +56,10 @@ impl<'a, C> RequestBuilder<'a, C> {
     pub fn form<S: Serialize>(mut self, obj: S) -> Self {
         match self.body {
             None => {
-                self.body = Some(InMemoryBody::Text(serde_qs::to_string(&obj).unwrap()));
-                self.headers
-                    .entry(header::CONTENT_TYPE)
-                    .or_insert(HeaderValue::from_static("application/x-www-form-urlencoded"));
-                self.headers.entry(header::ACCEPT).or_insert(HeaderValue::from_static("html/text"));
+                let body = serde_qs::to_string(&obj).unwrap();
+                self.body = Some(InMemoryBody::Text(body));
+                self.headers.entry(CONTENT_TYPE).or_insert(CONTENT_URL_ENCODED.clone());
+                self.headers.entry(ACCEPT).or_insert(HeaderValue::from_static("html/text"));
                 self
             }
             Some(InMemoryBody::Text(ref mut body)) => {
@@ -67,10 +78,8 @@ impl<'a, C> RequestBuilder<'a, C> {
     #[must_use]
     pub fn set_json<S: Serialize>(mut self, obj: S) -> Self {
         self.body = Some(InMemoryBody::Json(serde_json::to_value(obj).unwrap()));
-        self.headers
-            .entry(header::CONTENT_TYPE)
-            .or_insert(HeaderValue::from_static("application/json; charset=utf-8"));
-        self.headers.entry(header::ACCEPT).or_insert(HeaderValue::from_static("application/json"));
+        self.headers.entry(CONTENT_TYPE).or_insert(CONTENT_JSON.clone());
+        self.headers.entry(ACCEPT).or_insert(ACCEPT_JSON.clone());
         self
     }
 
@@ -137,26 +146,23 @@ impl<'a> RequestBuilder<'a> {
 
 impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
     pub fn build(self) -> Request<B> {
-        Request {
-            method: self.method,
-            uri: self.uri,
-            version: self.version,
-            headers: self.headers,
-            body: self.body.unwrap_or_default(),
-        }
+        let mut b = Request::builder()
+            .method(self.method)
+            .uri(self.uri)
+            .version(self.version);
+        *b.headers_mut().unwrap() = self.headers;
+        b.body(self.body.unwrap_or_default())
+            .expect("Failed to build request in .build")
     }
 
     pub fn into_req_and_middleware(self) -> (Request<B>, Vec<Arc<dyn Middleware>>) {
-        (
-            Request {
-                method: self.method,
-                uri: self.uri,
-                version: self.version,
-                headers: self.headers,
-                body: self.body.unwrap_or_default(),
-            },
-            self.middlewares,
-        )
+        let request = http::Request::builder()
+            .method(self.method)
+            .uri(self.uri)
+            .version(self.version)
+            .body(self.body.unwrap_or_default().into())
+            .unwrap();
+        (request, self.middlewares)
     }
 }
 
@@ -186,13 +192,13 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     #[must_use]
-    pub fn set_headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
+    pub fn set_headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
         self.headers = HeaderMap::new();
         self.headers(headers)
     }
 
     #[must_use]
-    pub fn headers<S: AsRef<str>, I: Iterator<Item = (S, S)>>(mut self, headers: I) -> Self {
+    pub fn headers<S: AsRef<str>, I: Iterator<Item=(S, S)>>(mut self, headers: I) -> Self {
         self.headers
             .extend(headers.map(|(k, v)| (HeaderName::from_str(k.as_ref()).unwrap(), HeaderValue::from_str(v.as_ref()).unwrap())));
         self
@@ -206,13 +212,14 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     #[must_use]
     pub fn cookie(mut self, key: &str, value: &str) -> Self {
-        match self.headers.entry(hyper::header::COOKIE) {
+        match self.headers.entry(COOKIE) {
             Entry::Occupied(mut e) => {
                 let v = e.get_mut();
                 *v = HeaderValue::from_str(&format!("{}; {}={}", v.to_str().unwrap(), key, value)).unwrap();
             }
             Entry::Vacant(_) => {
-                self.headers.insert(hyper::header::COOKIE, HeaderValue::from_str(&format!("{key}={value}")).unwrap());
+                let value = HeaderValue::from_str(&format!("{key}={value}")).unwrap();
+                self.headers.insert(COOKIE, value);
             }
         }
         self
@@ -220,19 +227,19 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     #[must_use]
     pub fn bearer_auth(mut self, token: &str) -> Self {
-        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
+        self.headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
         self
     }
 
     #[must_use]
     pub fn token_auth(mut self, token: &str) -> Self {
-        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Token {token}")).unwrap());
+        self.headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Token {token}")).unwrap());
         self
     }
 
     #[must_use]
     pub fn basic_auth(mut self, token: &str) -> Self {
-        self.headers.insert(header::AUTHORIZATION, HeaderValue::from_str(&format!("Basic {token}")).unwrap());
+        self.headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Basic {token}")).unwrap());
         self
     }
 
@@ -266,9 +273,9 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
                 Some(q) => format!("{}?{}&{}={}", pq.path(), q, urlencoding::encode(k), urlencoding::encode(v)),
                 None => format!("{}?{}={}", pq.path(), urlencoding::encode(k), urlencoding::encode(v)),
             }
-            .as_str(),
+                .as_str(),
         )
-        .unwrap();
+            .unwrap();
         parts.path_and_query = Some(pq);
         self.uri = Uri::from_parts(parts).unwrap();
         self

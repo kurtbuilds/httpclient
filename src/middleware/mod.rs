@@ -5,14 +5,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cookie::time;
 use cookie::time::format_description::well_known::Rfc2822;
-use http::Uri;
+use http::header::{CONTENT_LENGTH, LOCATION};
+use hyper::body::Bytes;
 use tokio::time::Duration;
 
 pub use recorder::*;
 
+use crate::{Body, InMemoryBody, InMemoryRequest, Response, Uri};
 use crate::client::Client;
 use crate::error::{ProtocolError, ProtocolResult};
-use crate::{Body, InMemoryBody, InMemoryRequest, Response};
 
 mod recorder;
 
@@ -33,11 +34,33 @@ impl Next<'_> {
             };
             middleware.handle(request, next).await
         } else {
-            let request = request.into_hyper();
+            let (mut parts, body) = request.into_parts();
+            let body = match body {
+                InMemoryBody::Empty => Bytes::new(),
+                InMemoryBody::Bytes(b) => Bytes::from(b),
+                InMemoryBody::Text(s) => Bytes::from(s),
+                InMemoryBody::Json(val) => Bytes::from(serde_json::to_string(&val)?),
+            };
+            let len = body.len();
+            parts.headers.insert(CONTENT_LENGTH, len.into());
+            let mut b = hyper::Request::builder()
+                .method(parts.method.as_str())
+                .uri(parts.uri.to_string());
+            for (k, v) in parts.headers.iter() {
+                b = b.header(k.as_str(), v.to_str().unwrap());
+            }
+            let request = b.body(hyper::Body::from(body))
+                .expect("Failed to build request");
             let res = self.client.inner.request(request).await?;
             let (parts, body) = res.into_parts();
             let body: Body = body.into();
-            let res = Response::from_parts(parts, body);
+            let mut b = Response::builder()
+                .status(parts.status.as_u16());
+            for (k, v) in parts.headers.iter() {
+                b = b.header(k.as_str(), v.to_str().unwrap());
+            }
+            let res = b.body(body)
+                .expect("Failed to build response");
             Ok(res)
         }
     }
@@ -219,13 +242,13 @@ impl Middleware for Follow {
             }
             let redirect = res
                 .headers()
-                .get(http::header::LOCATION)
+                .get(LOCATION)
                 .expect("Received a 3xx status code, but no location header was sent.")
                 .to_str()
                 .unwrap();
-            let url = fix_url(request.url(), redirect);
-            let request = request.clone();
-            let request = request.set_url(url);
+            let url = fix_url(request.uri(), redirect);
+            let mut request: InMemoryRequest = request.clone();
+            *request.uri_mut() = url;
             allowed_redirects -= 1;
             res = next.run(request).await?;
         }

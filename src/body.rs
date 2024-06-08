@@ -14,11 +14,6 @@ pub enum Body {
 }
 
 impl Body {
-    #[must_use]
-    pub fn new_empty() -> Self {
-        Body::InMemory(InMemoryBody::new_empty())
-    }
-
     pub fn is_empty(&self) -> bool {
         match self {
             Body::Hyper(b) => b.size_hint().upper() == Some(0),
@@ -41,7 +36,9 @@ impl Body {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
                 let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let content_type = content_type.map(|ct| ct.to_str().unwrap().split(';').next().unwrap());
+                let content_type = content_type
+                    .and_then(|t| t.to_str().ok())
+                    .and_then(|t| t.split(';').next());
                 match content_type {
                     Some("application/json") => {
                         let value = serde_json::from_slice(&bytes)?;
@@ -105,11 +102,12 @@ impl From<hyper::Body> for Body {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
     use super::*;
 
     #[test]
     fn test_serialization() {
-        let body = InMemoryBody::new_json(serde_json::json!({
+        let body = InMemoryBody::Json(json!({
             "foo": "bar"
         }));
         assert_eq!(serde_json::to_string(&body).expect("Unable to deserialize JSON"), r#"{"foo":"bar"}"#);

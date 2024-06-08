@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 
 use http::Method;
 use hyper::client::HttpConnector;
-use hyper::Uri;
+use http::Uri;
 use hyper_rustls::HttpsConnector;
 
 use crate::middleware::{Middleware, MiddlewareStack};

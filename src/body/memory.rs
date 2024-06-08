@@ -44,31 +44,12 @@ impl TryInto<Bytes> for InMemoryBody {
 }
 
 impl InMemoryBody {
-    pub fn new_bytes(bytes: impl Into<Vec<u8>>) -> Self {
-        InMemoryBody::Bytes(bytes.into())
-    }
-
-    pub fn new_text(text: impl Into<String>) -> Self {
-        InMemoryBody::Text(text.into())
-    }
-
-    pub fn new_json(value: impl Serialize) -> Self {
-        InMemoryBody::Json(serde_json::to_value(value).unwrap())
-    }
-
-    #[must_use]
-    pub fn new_empty() -> Self {
-        InMemoryBody::Empty
-    }
-
-    #[must_use]
     pub fn is_empty(&self) -> bool {
-        use InMemoryBody::{Bytes, Empty, Json, Text};
         match self {
-            Empty => true,
-            Bytes(b) => b.is_empty(),
-            Text(s) => s.is_empty(),
-            Json(_) => false,
+            InMemoryBody::Empty => true,
+            InMemoryBody::Bytes(b) => b.is_empty(),
+            InMemoryBody::Text(s) => s.is_empty(),
+            InMemoryBody::Json(_) => false,
         }
     }
 
@@ -98,18 +79,17 @@ impl InMemoryBody {
 
 impl std::hash::Hash for InMemoryBody {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        use InMemoryBody::{Bytes, Empty, Json, Text};
         match self {
-            Empty => state.write_u8(0),
-            Bytes(b) => {
+            InMemoryBody::Empty => state.write_u8(0),
+            InMemoryBody::Bytes(b) => {
                 state.write_u8(1);
                 state.write(b.as_slice());
             }
-            Text(s) => {
+            InMemoryBody::Text(s) => {
                 state.write_u8(2);
                 state.write(s.as_bytes());
             }
-            Json(v) => {
+            InMemoryBody::Json(v) => {
                 state.write_u8(3);
                 state.write(v.to_string().as_bytes());
             }

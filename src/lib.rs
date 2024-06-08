@@ -10,7 +10,7 @@ pub use request::{InMemoryRequest, Request, RequestBuilder};
 pub use response::{InMemoryResponse, InMemoryResponseExt, ResponseExt};
 use std::sync::OnceLock;
 
-pub type Response = http::Response<Body>;
+pub type Response<T = Body> = http::Response<T>;
 
 mod body;
 mod client;

@@ -2,18 +2,18 @@ use http::{HeaderMap, Response, StatusCode};
 use hyper::body::Bytes;
 use serde::de::{DeserializeOwned, Error};
 
-use crate::sanitize::sanitize_headers;
 use crate::{InMemoryBody, InMemoryResult, Result};
 
 pub type InMemoryResponse = Response<InMemoryBody>;
+
+
+/// Attempt to clear sensitive information from the response.
 
 pub trait InMemoryResponseExt {
     fn new(status: StatusCode, headers: HeaderMap, body: InMemoryBody) -> Self;
     fn text(self) -> InMemoryResult<String>;
     fn json<U: DeserializeOwned>(self) -> serde_json::Result<U>;
     fn bytes(self) -> InMemoryResult<Bytes>;
-    /// Attempt to clear sensitive information from the response.
-    fn sanitize(&mut self);
 
     fn get_cookie(&self, name: &str) -> Option<&str>;
 }
@@ -41,12 +41,6 @@ impl InMemoryResponseExt for InMemoryResponse {
         body.bytes()
     }
 
-    /// Attempt to clear sensitive information from the response.
-    fn sanitize(&mut self) {
-        let h = self.headers_mut();
-        sanitize_headers(h);
-        self.body_mut().sanitize();
-    }
 
     fn get_cookie(&self, name: &str) -> Option<&str> {
         let value = self.headers().get("set-cookie")?;
@@ -57,20 +51,12 @@ impl InMemoryResponseExt for InMemoryResponse {
     }
 }
 
-pub(crate) fn clone_inmemory_response(res: &InMemoryResponse) -> InMemoryResponse {
-    let (mut parts, ()) = Response::new(()).into_parts();
-    parts.headers = res.headers().clone();
-    parts.status = res.status();
-    parts.version = res.version();
-    let body = res.body().clone();
-    Response::from_parts(parts, body)
-}
-
 pub mod serde_response {
     use std::collections::BTreeMap;
+    use std::str::FromStr;
 
-    use serde::ser::SerializeStruct;
     use serde::Deserializer;
+    use serde::ser::SerializeStruct;
 
     use super::{Error, HeaderMap, InMemoryBody, InMemoryResponse, Result, StatusCode};
 
@@ -100,7 +86,7 @@ pub mod serde_response {
         where
             A: serde::de::MapAccess<'de>,
         {
-            use hyper::header::{HeaderName, HeaderValue};
+            use http::header::{HeaderName, HeaderValue};
             use std::borrow::Cow;
 
             let mut status = None;
@@ -138,10 +124,10 @@ pub mod serde_response {
                 headers
                     .ok_or_else(|| Error::missing_field("headers"))?
                     .iter()
-                    .map(|(k, v)| (HeaderName::from_bytes(k.as_bytes()).unwrap(), HeaderValue::from_str(v).unwrap())),
+                    .map(|(k, v)| (HeaderName::from_str(k).unwrap(), HeaderValue::from_str(v).unwrap())),
             );
 
-            let body = body.ok_or_else(|| Error::missing_field("data"))?;
+            let body = body.ok_or_else(|| Error::missing_field("body"))?;
             let mut b = http::response::Builder::new().status(status);
             let h = b.headers_mut().unwrap();
             *h = headers;
@@ -163,18 +149,19 @@ mod tests {
 
     use serde_json::json;
 
+    use crate::sanitize::sanitize_response;
+
     use super::*;
 
     #[test]
     fn test_serialize() {
         let mut res = http::response::Builder::new()
-            .status(StatusCode::OK)
-            .body(InMemoryBody::new_json(json!({
+            .body(InMemoryBody::Json(json!({
                 "Password": "hunter2",
                 "email": "amazing",
             })))
             .unwrap();
-        res.sanitize();
+        sanitize_response(&mut res);
         let serialized = BufWriter::new(Vec::new());
         let mut serializer = serde_json::Serializer::new(serialized);
         serde_response::serialize(&res, &mut serializer).unwrap();

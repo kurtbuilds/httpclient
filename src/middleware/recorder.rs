@@ -1,14 +1,14 @@
 use std::sync::OnceLock;
 
 use async_trait::async_trait;
+use http::header::CONTENT_TYPE;
 use tracing::info;
 
+use crate::{Body, InMemoryRequest, InMemoryResponse, Middleware, Response};
 use crate::error::ProtocolResult;
 use crate::middleware::Next;
 use crate::middleware::ProtocolError;
-use crate::recorder::RequestRecorder;
-use crate::response::{clone_inmemory_response, mem_response_into_hyper, response_into_content};
-use crate::{InMemoryRequest, Middleware, Response};
+use crate::recorder::{HashableRequest, RequestRecorder};
 
 #[derive(PartialEq, Eq, Clone, Copy, Default, Debug)]
 pub enum RecorderMode {
@@ -86,12 +86,15 @@ impl Middleware for Recorder {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
         let recorder = shared_recorder();
 
+        let request = HashableRequest(request);
         if self.should_lookup() {
             let recorded = recorder.get_response(&request);
 
             if let Some(recorded) = recorded {
-                info!(url = request.url().to_string(), "Using recorded response");
-                return Ok(mem_response_into_hyper(recorded));
+                info!(url = request.uri().to_string(), "Using recorded response");
+
+                let (parts, body) = recorded.into_parts();
+                return Ok(Response::from_parts(parts, Body::InMemory(body)));
             }
         }
 
@@ -100,10 +103,14 @@ impl Middleware for Recorder {
         }
 
         let response = next.run(request.clone()).await?;
-        let response = response_into_content(response).await?;
+        let (parts, body) = response.into_parts();
+        let content_type = parts.headers.get(CONTENT_TYPE);
+        let body = body.into_content_type(content_type).await?;
+        let response = InMemoryResponse::from_parts(parts, body);
 
-        recorder.record_response(request, clone_inmemory_response(&response))?;
+        recorder.record_response(request.0, response.clone())?;
 
-        Ok(mem_response_into_hyper(response))
+        let (parts, body) = response.into_parts();
+        Ok(Response::from_parts(parts, Body::InMemory(body)))
     }
 }

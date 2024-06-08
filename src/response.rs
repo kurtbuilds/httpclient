@@ -5,24 +5,10 @@ use serde::de::DeserializeOwned;
 
 pub use memory::*;
 
-use crate::body::Body;
-use crate::error::ProtocolResult;
 use crate::{InMemoryResult, Result};
+use crate::body::Body;
 
 mod memory;
-
-pub(crate) async fn response_into_content(res: Response<Body>) -> ProtocolResult<InMemoryResponse> {
-    let (parts, body) = res.into_parts();
-    let content_type = parts.headers.get(hyper::header::CONTENT_TYPE);
-    let body = body.into_content_type(content_type).await?;
-    Ok(InMemoryResponse::from_parts(parts, body))
-}
-
-pub(crate) fn mem_response_into_hyper(res: InMemoryResponse) -> Response<Body> {
-    let (parts, body) = res.into_parts();
-    let body = body.into();
-    Response::from_parts(parts, body)
-}
 
 #[async_trait]
 pub trait ResponseExt
