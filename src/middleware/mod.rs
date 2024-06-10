@@ -39,10 +39,13 @@ impl Next<'_> {
                 InMemoryBody::Empty => Bytes::new(),
                 InMemoryBody::Bytes(b) => Bytes::from(b),
                 InMemoryBody::Text(s) => Bytes::from(s),
-                InMemoryBody::Json(val) => Bytes::from(serde_json::to_string(&val)?),
+                InMemoryBody::Json(val) => {
+                    let content = serde_json::to_string(&val)?;
+                    let len = content.len();
+                    parts.headers.entry(CONTENT_LENGTH).or_insert(len.into());
+                    Bytes::from(content)
+                },
             };
-            let len = body.len();
-            parts.headers.insert(CONTENT_LENGTH, len.into());
             let mut b = hyper::Request::builder().method(parts.method.as_str()).uri(parts.uri.to_string());
             for (k, v) in parts.headers.iter() {
                 b = b.header(k.as_str(), v.to_str().unwrap());

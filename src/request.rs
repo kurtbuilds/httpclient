@@ -41,6 +41,36 @@ impl<B> RequestExt for Request<B> {
     }
 }
 
+pub trait RequestBuilderExt {
+    fn get(uri: &str) -> RequestBuilder<()>;
+    fn post(uri: &str) -> RequestBuilder<()>;
+    fn put(uri: &str) -> RequestBuilder<()>;
+    fn delete(uri: &str) -> RequestBuilder<()>;
+    fn head(uri: &str) -> RequestBuilder<()>;
+}
+
+impl RequestBuilderExt for Request {
+    fn get(uri: &str) -> RequestBuilder<()> {
+        RequestBuilder::get(uri)
+    }
+
+    fn post(uri: &str) -> RequestBuilder<()> {
+        RequestBuilder::post(uri)
+    }
+
+    fn put(uri: &str) -> RequestBuilder<()> {
+        RequestBuilder::put(uri)
+    }
+
+    fn delete(uri: &str) -> RequestBuilder<()> {
+        RequestBuilder::delete(uri)
+    }
+
+    fn head(uri: &str) -> RequestBuilder<()> {
+        RequestBuilder::head(uri)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

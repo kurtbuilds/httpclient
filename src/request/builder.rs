@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE};
+use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE, CONTENT_LENGTH};
 use http::uri::PathAndQuery;
 use http::{header, HeaderMap, HeaderValue, Method, Uri, Version};
 use serde::Serialize;
@@ -44,6 +44,15 @@ impl<'a> RequestBuilder<'a, ()> {
     }
     pub fn post(url: &str) -> RequestBuilder<'a, ()> {
         RequestBuilder::new(&(), Method::POST, Uri::from_str(url).expect("Invalid URL"))
+    }
+    pub fn put(url: &str) -> RequestBuilder<'a, ()> {
+        RequestBuilder::new(&(), Method::PUT, Uri::from_str(url).expect("Invalid URL"))
+    }
+    pub fn delete(url: &str) -> RequestBuilder<'a, ()> {
+        RequestBuilder::new(&(), Method::DELETE, Uri::from_str(url).expect("Invalid URL"))
+    }
+    pub fn head(url: &str) -> RequestBuilder<'a, ()> {
+        RequestBuilder::new(&(), Method::HEAD, Uri::from_str(url).expect("Invalid URL"))
     }
 }
 
@@ -111,6 +120,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
     #[must_use]
     pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
+        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(bytes.len()));
         self.body = Some(InMemoryBody::Bytes(bytes));
         self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
         self
@@ -119,6 +129,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Sets content-type to `text/plain` and the body to the supplied text.
     #[must_use]
     pub fn text(mut self, text: String) -> Self {
+        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(text.len()));
         self.body = Some(InMemoryBody::Text(text));
         self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
         self
@@ -126,12 +137,17 @@ impl<'a, C> RequestBuilder<'a, C> {
 
     #[must_use]
     pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
+        println!("Multipart form");
         let content_type = form.full_content_type();
         self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
+        println!("headers: {:?}", self.headers);
         let body: Vec<u8> = form.into();
         let len = body.len();
-        self.body = Some(InMemoryBody::Bytes(body));
-        self.headers.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+        match String::from_utf8(body) {
+            Ok(text) => self.body = Some(InMemoryBody::Text(text)),
+            Err(bytes) => self.body = Some(InMemoryBody::Bytes(bytes.into_bytes())),
+        }
+        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(len));
         self
     }
 }
@@ -158,11 +174,12 @@ impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
     }
 
     pub fn into_req_and_middleware(self) -> (Request<B>, Vec<Arc<dyn Middleware>>) {
-        let request = http::Request::builder()
+        let mut request = http::Request::builder()
             .method(self.method)
             .uri(self.uri)
-            .version(self.version)
-            .body(self.body.unwrap_or_default().into())
+            .version(self.version);
+        *request.headers_mut().unwrap() = self.headers;
+        let request = request.body(self.body.unwrap_or_default().into())
             .unwrap();
         (request, self.middlewares)
     }
@@ -229,6 +246,7 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     #[must_use]
     pub fn bearer_auth(mut self, token: &str) -> Self {
+        println!("Bearer auth with token: {}", token);
         self.headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
         self
     }

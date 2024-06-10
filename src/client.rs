@@ -105,42 +105,27 @@ impl Client {
 
     #[must_use]
     pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
-        let uri = self.build_uri(url_or_path);
-        RequestBuilder::new(self, Method::GET, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .set_middlewares(self.middlewares.clone())
+        self.request(Method::GET, url_or_path)
     }
 
     #[must_use]
     pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
-        let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::POST, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .set_middlewares(self.middlewares.clone())
+        self.request(Method::POST, uri_or_path)
     }
 
     #[must_use]
     pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
-        let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::DELETE, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .set_middlewares(self.middlewares.clone())
+        self.request(Method::DELETE, uri_or_path)
     }
 
     #[must_use]
     pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
-        let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::PUT, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .set_middlewares(self.middlewares.clone())
+        self.request(Method::PUT, uri_or_path)
     }
 
     #[must_use]
     pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
-        let uri = self.build_uri(uri_or_path);
-        RequestBuilder::new(self, Method::PATCH, uri)
-            .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .set_middlewares(self.middlewares.clone())
+        self.request(Method::PATCH, uri_or_path)
     }
 
     #[must_use]
