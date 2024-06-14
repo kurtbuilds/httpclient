@@ -137,10 +137,8 @@ impl<'a, C> RequestBuilder<'a, C> {
 
     #[must_use]
     pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
-        println!("Multipart form");
         let content_type = form.full_content_type();
         self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
-        println!("headers: {:?}", self.headers);
         let body: Vec<u8> = form.into();
         let len = body.len();
         match String::from_utf8(body) {

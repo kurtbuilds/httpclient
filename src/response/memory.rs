@@ -15,6 +15,7 @@ pub trait InMemoryResponseExt {
     fn bytes(self) -> InMemoryResult<Bytes>;
 
     fn get_cookie(&self, name: &str) -> Option<&str>;
+    fn header(&self, name: &str) -> Option<&str>;
 }
 
 impl InMemoryResponseExt for InMemoryResponse {
@@ -46,6 +47,10 @@ impl InMemoryResponseExt for InMemoryResponse {
         let cookie = cookie::Cookie::split_parse_encoded(value);
         let cookie = cookie.into_iter().filter_map(std::result::Result::ok).find(|c| c.name() == name)?;
         cookie.value_raw()
+    }
+
+    fn header(&self, name: &str) -> Option<&str> {
+        self.headers().get(name).and_then(|v| v.to_str().ok())
     }
 }
 
