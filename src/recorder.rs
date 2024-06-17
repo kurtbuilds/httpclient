@@ -132,7 +132,7 @@ impl RequestRecorder {
     fn partial_filepath(&self, request: &InMemoryRequest) -> PathBuf {
         let mut path = self.base_path.clone();
         path.push(request.host());
-        path.push(&request.path()[1..]);
+        path.push(&request.path().trim_start_matches('/'));
         path.push(request.method().as_str().to_lowercase());
         path
     }
