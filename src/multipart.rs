@@ -1,6 +1,7 @@
-use http::{header, HeaderMap, StatusCode};
+use http::{header, HeaderMap, HeaderName, StatusCode};
 use rand::Rng;
 use std::str::FromStr;
+use http::header::AsHeaderName;
 
 use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse, InMemoryResponseExt};
 
@@ -186,6 +187,10 @@ impl<B> Part<B> {
     pub fn content_id(mut self, id: &str) -> Self {
         self.headers.insert("Content-ID", id.parse().expect("Unable to parse content id"));
         self
+    }
+
+    pub fn header_str<H: AsHeaderName>(&self, h: H) -> Option<&str> {
+        self.headers.get(h).and_then(|v| v.to_str().ok())
     }
 }
 
