@@ -128,37 +128,40 @@ impl<B> Form<B> {
     }
 }
 
-fn terminate(buf: &mut Vec<u8>, boundary: &[u8]) {
+fn write_terminate(buf: &mut Vec<u8>, boundary: &[u8]) {
     buf.extend_from_slice(b"--");
     buf.extend_from_slice(boundary);
     buf.extend_from_slice(b"--\r\n");
 }
 
+fn write_boundary(buf: &mut Vec<u8>, boundary: &[u8]) {
+    buf.extend_from_slice(b"--");
+    buf.extend_from_slice(boundary);
+    buf.extend_from_slice(b"\r\n");
+}
+
+fn write_headers(buf: &mut Vec<u8>, headers: &HeaderMap) {
+    for (key, value) in headers {
+        let key = key.as_str();
+        buf.extend_from_slice(key.as_bytes());
+        buf.extend_from_slice(b": ");
+        buf.extend_from_slice(value.as_bytes());
+        buf.extend_from_slice(b"\r\n");
+    }
+    buf.extend_from_slice(b"\r\n");
+}
+
 impl From<Form<InMemoryRequest>> for Vec<u8> {
-    fn from(val: Form<InMemoryRequest>) -> Self {
-        let boundary = val.boundary.as_bytes();
-
+    fn from(value: Form<InMemoryRequest>) -> Self {
+        let boundary = value.boundary.as_bytes();
         let mut buf = Vec::new();
-        for part in val.parts {
-            let headers = &part.headers;
-            // let body = part.body.bytes().expect("Failed to convert body to bytes");
-            buf.extend_from_slice(b"--");
-            buf.extend_from_slice(boundary);
-            buf.extend_from_slice(b"\r\n");
-            for (key, value) in headers {
-                let key = key.as_str();
-                buf.extend_from_slice(key.as_bytes());
-                buf.extend_from_slice(b": ");
-                buf.extend_from_slice(value.as_bytes());
-                buf.extend_from_slice(b"\r\n");
-            }
-            buf.extend_from_slice(b"\r\n");
+        for part in value.parts {
+            write_boundary(&mut buf, boundary);
+            write_headers(&mut buf, &part.headers);
 
-            // serialize request
             let req = part.body;
             let method = req.method().as_str();
             let uri = req.uri().path();
-
             buf.extend_from_slice(method.as_bytes());
             buf.extend(b" ");
             buf.extend_from_slice(uri.as_bytes());
@@ -167,12 +170,30 @@ impl From<Form<InMemoryRequest>> for Vec<u8> {
             let body = req.into_body();
             let body = body.bytes().expect("Failed to convert body to bytes");
 
+            buf.extend_from_slice(body.as_ref());
             if !body.is_empty() {
-                buf.extend_from_slice(body.as_ref());
                 buf.extend_from_slice(b"\r\n");
             }
         }
-        terminate(&mut buf, boundary);
+        write_terminate(&mut buf, boundary);
+        buf
+    }
+}
+
+impl From<Form<Vec<u8>>> for Vec<u8> {
+    fn from(value: Form<Vec<u8>>) -> Self {
+        let boundary = value.boundary.as_bytes();
+        let mut buf = Vec::new();
+        for part in value.parts {
+            let body = part.body;
+            write_boundary(&mut buf, boundary);
+            write_headers(&mut buf, &part.headers);
+
+            buf.extend_from_slice(body.as_ref());
+            if !body.is_empty() {
+                buf.extend_from_slice(b"\r\n");
+            }
+        }
         buf
     }
 }
