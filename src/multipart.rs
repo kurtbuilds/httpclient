@@ -51,6 +51,7 @@ fn parse_response(text: &str) -> Option<InMemoryResponse> {
     res.body(body).ok()
 }
 
+#[derive(Debug)]
 pub struct Form<B> {
     pub boundary: String,
     // doesn't yet include the boundary. use `full_content_type` to get the full content type.
@@ -151,53 +152,59 @@ fn write_headers(buf: &mut Vec<u8>, headers: &HeaderMap) {
     buf.extend_from_slice(b"\r\n");
 }
 
-impl From<Form<InMemoryRequest>> for Vec<u8> {
-    fn from(value: Form<InMemoryRequest>) -> Self {
+/// trait to define how to write bytes into a request buffer
+pub trait WriteBytes {
+    fn write(self, buf: &mut Vec<u8>);
+}
+
+impl<T: WriteBytes> From<Form<T>> for Vec<u8> {
+    fn from(value: Form<T>) -> Self {
         let boundary = value.boundary.as_bytes();
         let mut buf = Vec::new();
         for part in value.parts {
             write_boundary(&mut buf, boundary);
             write_headers(&mut buf, &part.headers);
-
-            let req = part.body;
-            let method = req.method().as_str();
-            let uri = req.uri().path();
-            buf.extend_from_slice(method.as_bytes());
-            buf.extend(b" ");
-            buf.extend_from_slice(uri.as_bytes());
-            buf.extend_from_slice(b"\r\n");
-
-            let body = req.into_body();
-            let body = body.bytes().expect("Failed to convert body to bytes");
-
-            buf.extend_from_slice(body.as_ref());
-            if !body.is_empty() {
-                buf.extend_from_slice(b"\r\n");
-            }
+            part.body.write(&mut buf);
         }
         write_terminate(&mut buf, boundary);
         buf
     }
 }
 
-impl From<Form<Vec<u8>>> for Vec<u8> {
-    fn from(value: Form<Vec<u8>>) -> Self {
-        let boundary = value.boundary.as_bytes();
-        let mut buf = Vec::new();
-        for part in value.parts {
-            let body = part.body;
-            write_boundary(&mut buf, boundary);
-            write_headers(&mut buf, &part.headers);
-
-            buf.extend_from_slice(body.as_ref());
-            if !body.is_empty() {
-                buf.extend_from_slice(b"\r\n");
-            }
-        }
-        buf
+impl WriteBytes for InMemoryRequest {
+    fn write(self, buf: &mut Vec<u8>) {
+        let method = self.method().as_str();
+        let uri = self.uri().path();
+        buf.extend_from_slice(method.as_bytes());
+        buf.extend(b" ");
+        buf.extend_from_slice(uri.as_bytes());
+        buf.extend_from_slice(b"\r\n");
+        let body = self.into_body();
+        body.write(buf);
     }
 }
 
+impl WriteBytes for Vec<u8> {
+    fn write(self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self);
+    }
+}
+
+impl WriteBytes for InMemoryBody {
+    fn write(self, buf: &mut Vec<u8>) {
+        match self {
+            InMemoryBody::Empty => {}
+            InMemoryBody::Bytes(b) => buf.extend_from_slice(&b),
+            InMemoryBody::Text(s) => buf.extend_from_slice(s.as_bytes()),
+            InMemoryBody::Json(val) => {
+                let content = serde_json::to_string(&val).expect("Failed to convert json to string");
+                buf.extend_from_slice(content.as_bytes());
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Part<B> {
     pub headers: HeaderMap,
     pub body: B,
