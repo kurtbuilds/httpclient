@@ -12,7 +12,7 @@ use serde_json::Value;
 use crate::error::ProtocolResult;
 use crate::middleware::Next;
 use crate::multipart::Form;
-use crate::{Client, Error, InMemoryBody, InMemoryRequest, InMemoryResponse, Middleware, Request, Response};
+use crate::{Client, Error, InMemoryBody, InMemoryResponse, Middleware, Request, Response};
 
 pub static ACCEPT_JSON: HeaderValue = HeaderValue::from_static("application/json");
 pub static CONTENT_JSON: HeaderValue = HeaderValue::from_static("application/json; charset=utf-8");
@@ -136,7 +136,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     }
 
     #[must_use]
-    pub fn multipart(mut self, form: Form<InMemoryRequest>) -> Self {
+    pub fn multipart<B>(mut self, form: Form<B>) -> Self where Form<B> : Into<Vec<u8>> {
         let content_type = form.full_content_type();
         self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();

@@ -1,4 +1,4 @@
-use http::{header, HeaderMap, HeaderName, StatusCode};
+use http::{header, HeaderMap, StatusCode};
 use rand::Rng;
 use std::str::FromStr;
 use http::header::AsHeaderName;
