@@ -164,7 +164,11 @@ impl<T: WriteBytes> From<Form<T>> for Vec<u8> {
         for part in value.parts {
             write_boundary(&mut buf, boundary);
             write_headers(&mut buf, &part.headers);
+            let n = buf.len();
             part.body.write(&mut buf);
+            if buf.len() > n {
+                buf.extend_from_slice(b"\r\n");
+            }
         }
         write_terminate(&mut buf, boundary);
         buf
@@ -178,8 +182,10 @@ impl WriteBytes for InMemoryRequest {
         buf.extend_from_slice(method.as_bytes());
         buf.extend(b" ");
         buf.extend_from_slice(uri.as_bytes());
-        buf.extend_from_slice(b"\r\n");
         let body = self.into_body();
+        if !body.is_empty() {
+            buf.extend_from_slice(b"\r\n");
+        }
         body.write(buf);
     }
 }
@@ -226,26 +232,52 @@ impl Part<InMemoryRequest> {
     #[must_use]
     pub fn new(body: InMemoryRequest) -> Self {
         let mut headers = HeaderMap::new();
-        headers.insert(http::header::CONTENT_TYPE, "application/http".parse().expect("Unable to parse content type"));
+        headers.insert(header::CONTENT_TYPE, "application/http".parse().expect("Unable to parse content type"));
         Part { headers, body }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
     use super::*;
     use crate::Request;
 
     #[test]
     fn test_to_bytes() {
-        let mut form = Form::new();
+        let boundary = "zzz".to_string();
+        let mut form = Form::new().boundary(boundary.clone());
         let part = Part::new(Request::builder().uri("/farm/v1/animals/pony").body(InMemoryBody::Empty).unwrap());
         form.parts.push(part);
 
-        let boundary = form.boundary.clone();
         let bytes: Vec<u8> = form.into();
         let s = String::from_utf8(bytes).expect("Unable to convert bytes to string");
         let right = format!("--{0}\r\ncontent-type: application/http\r\n\r\nGET /farm/v1/animals/pony\r\n--{0}--\r\n", &boundary);
+        assert_eq!(s, right);
+    }
+
+    #[test]
+    fn test_to_bytes2() {
+        let boundary = "zzz".to_string();
+        let mut form = Form::new().boundary(boundary.clone());
+        let part = Part {
+            headers: {
+                let mut headers = HeaderMap::new();
+                headers.insert("Content-Disposition", "form-data; name=\"MetaData\"".parse().unwrap());
+                headers
+            },
+            body: InMemoryBody::Json(json!({
+                "TransactionId": 1,
+                "Content": "message",
+                "DisputeTypeCode": "BackupRequest",
+                "DisputeTypeDescription": "Backup Request",
+                "Documents": []
+            })),
+        };
+        form.parts.push(part);
+        let bytes: Vec<u8> = form.into();
+        let s = String::from_utf8(bytes).expect("Unable to convert bytes to string");
+        let right = "--zzz\r\ncontent-disposition: form-data; name=\"MetaData\"\r\n\r\n{\"Content\":\"message\",\"DisputeTypeCode\":\"BackupRequest\",\"DisputeTypeDescription\":\"Backup Request\",\"Documents\":[],\"TransactionId\":1}\r\n--zzz--\r\n";
         assert_eq!(s, right);
     }
 }
