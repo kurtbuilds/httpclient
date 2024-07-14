@@ -244,7 +244,6 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
 
     #[must_use]
     pub fn bearer_auth(mut self, token: &str) -> Self {
-        println!("Bearer auth with token: {}", token);
         self.headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
         self
     }
