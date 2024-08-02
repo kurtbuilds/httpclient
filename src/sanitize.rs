@@ -52,7 +52,7 @@ pub fn sanitize_value(value: &mut Value) {
     match value {
         Value::Object(map) => {
             for (key, value) in map.iter_mut() {
-                if should_sanitize(key) {
+                if should_sanitize(key) && value.is_string() {
                     *value = Value::String(SANITIZED_VALUE.to_string());
                 } else {
                     sanitize_value(value);
