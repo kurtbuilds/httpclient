@@ -340,15 +340,15 @@ impl<'a> IntoFuture for RequestBuilder<'a, Client> {
                 Ok(body) => body,
                 Err(e) => return Err(e.into()),
             };
+            if let InMemoryBody::Bytes(bytes) = body {
+                body = match String::from_utf8(bytes) {
+                    Ok(text) => InMemoryBody::Text(text),
+                    Err(e) => InMemoryBody::Bytes(e.into_bytes()),
+                };
+            }
             let status = &parts.status;
             if status.is_client_error() || status.is_server_error() {
                 // Prevents us from showing bytes to end users in error situations.
-                if let InMemoryBody::Bytes(bytes) = body {
-                    body = match String::from_utf8(bytes) {
-                        Ok(text) => InMemoryBody::Text(text),
-                        Err(e) => InMemoryBody::Bytes(e.into_bytes()),
-                    };
-                }
                 Err(Error::HttpError(InMemoryResponse::from_parts(parts, body)))
             } else {
                 Ok(InMemoryResponse::from_parts(parts, body))

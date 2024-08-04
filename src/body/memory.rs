@@ -96,3 +96,15 @@ impl std::hash::Hash for InMemoryBody {
         }
     }
 }
+
+impl Into<InMemoryBody> for String {
+    fn into(self) -> InMemoryBody {
+        InMemoryBody::Text(self)
+    }
+}
+
+impl Into<InMemoryBody> for Vec<u8> {
+    fn into(self) -> InMemoryBody {
+        InMemoryBody::Bytes(self)
+    }
+}

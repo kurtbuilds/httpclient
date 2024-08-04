@@ -1,9 +1,13 @@
+use http::header::{AsHeaderName, IntoHeaderName};
 use http::{header, HeaderMap, StatusCode};
 use rand::Rng;
 use std::str::FromStr;
-use http::header::AsHeaderName;
+pub use form::Form;
+pub use part::Part;
+use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
 
-use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse, InMemoryResponseExt};
+mod part;
+mod form;
 
 fn gen_boundary() -> String {
     let mut rng = rand::thread_rng();
@@ -51,84 +55,6 @@ fn parse_response(text: &str) -> Option<InMemoryResponse> {
     res.body(body).ok()
 }
 
-#[derive(Debug)]
-pub struct Form<B> {
-    pub boundary: String,
-    // doesn't yet include the boundary. use `full_content_type` to get the full content type.
-    pub content_type: String,
-    pub parts: Vec<Part<B>>,
-}
-
-impl Default for Form<InMemoryBody> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Form<InMemoryResponse> {
-    pub fn from_response(res: InMemoryResponse) -> Option<Self> {
-        let mut form = Form::new();
-        let header = res.headers().get(header::CONTENT_TYPE)?;
-        let header = header.to_str().ok()?;
-        let boundary = header.split_once("boundary=")?.1;
-        let boundary = format!("--{}", boundary);
-        let text = res.text().ok()?;
-        let mut splits = text.split(&boundary).skip(1);
-        while let Some(mut part) = splits.next() {
-            if part.starts_with("--\r\n") {
-                break;
-            }
-            debug_assert!(part.starts_with("\r\n"));
-            part = &part[2..];
-            let (headers, mut part) = parse_headers(part)?;
-            debug_assert!(part.starts_with("\r\n"));
-            part = &part[2..];
-            let body = parse_response(part)?;
-            form.push(Part { headers, body });
-        }
-        Some(form)
-    }
-}
-
-impl<B> Form<B> {
-    #[must_use]
-    pub fn full_content_type(&self) -> String {
-        format!("{}; boundary={}", self.content_type, &self.boundary)
-    }
-
-    #[must_use]
-    pub fn content_type(mut self, content_type: String) -> Self {
-        self.content_type = content_type;
-        self
-    }
-
-    #[must_use]
-    pub fn boundary(mut self, boundary: String) -> Self {
-        self.boundary = boundary;
-        self
-    }
-
-    #[must_use]
-    pub fn new() -> Self {
-        let boundary = gen_boundary();
-        Form {
-            content_type: "multipart/mixed".to_string(),
-            boundary,
-            parts: Vec::new(),
-        }
-    }
-
-    #[must_use]
-    pub fn part(mut self, part: Part<B>) -> Self {
-        self.parts.push(part);
-        self
-    }
-
-    pub fn push(&mut self, part: Part<B>) {
-        self.parts.push(part);
-    }
-}
-
 fn write_terminate(buf: &mut Vec<u8>, boundary: &[u8]) {
     buf.extend_from_slice(b"--");
     buf.extend_from_slice(boundary);
@@ -155,24 +81,6 @@ fn write_headers(buf: &mut Vec<u8>, headers: &HeaderMap) {
 /// trait to define how to write bytes into a request buffer
 pub trait WriteBytes {
     fn write(self, buf: &mut Vec<u8>);
-}
-
-impl<T: WriteBytes> From<Form<T>> for Vec<u8> {
-    fn from(value: Form<T>) -> Self {
-        let boundary = value.boundary.as_bytes();
-        let mut buf = Vec::new();
-        for part in value.parts {
-            write_boundary(&mut buf, boundary);
-            write_headers(&mut buf, &part.headers);
-            let n = buf.len();
-            part.body.write(&mut buf);
-            if buf.len() > n {
-                buf.extend_from_slice(b"\r\n");
-            }
-        }
-        write_terminate(&mut buf, boundary);
-        buf
-    }
 }
 
 impl WriteBytes for InMemoryRequest {
@@ -210,44 +118,17 @@ impl WriteBytes for InMemoryBody {
     }
 }
 
-#[derive(Debug)]
-pub struct Part<B> {
-    pub headers: HeaderMap,
-    pub body: B,
-}
-
-impl<B> Part<B> {
-    #[must_use]
-    pub fn content_id(mut self, id: &str) -> Self {
-        self.headers.insert("Content-ID", id.parse().expect("Unable to parse content id"));
-        self
-    }
-
-    pub fn header_str<H: AsHeaderName>(&self, h: H) -> Option<&str> {
-        self.headers.get(h).and_then(|v| v.to_str().ok())
-    }
-}
-
-impl Part<InMemoryRequest> {
-    #[must_use]
-    pub fn new(body: InMemoryRequest) -> Self {
-        let mut headers = HeaderMap::new();
-        headers.insert(header::CONTENT_TYPE, "application/http".parse().expect("Unable to parse content type"));
-        Part { headers, body }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
     use crate::Request;
+    use serde_json::json;
 
     #[test]
     fn test_to_bytes() {
         let boundary = "zzz".to_string();
         let mut form = Form::new().boundary(boundary.clone());
-        let part = Part::new(Request::builder().uri("/farm/v1/animals/pony").body(InMemoryBody::Empty).unwrap());
+        let part = Part::request(Request::builder().uri("/farm/v1/animals/pony").body(InMemoryBody::Empty).unwrap());
         form.parts.push(part);
 
         let bytes: Vec<u8> = form.into();
@@ -260,20 +141,18 @@ mod tests {
     fn test_to_bytes2() {
         let boundary = "zzz".to_string();
         let mut form = Form::new().boundary(boundary.clone());
-        let part = Part {
-            headers: {
-                let mut headers = HeaderMap::new();
-                headers.insert("Content-Disposition", "form-data; name=\"MetaData\"".parse().unwrap());
-                headers
-            },
-            body: InMemoryBody::Json(json!({
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Disposition", "form-data; name=\"MetaData\"".parse().unwrap());
+        let part = Part::new(
+            headers,
+            InMemoryBody::Json(json!({
                 "TransactionId": 1,
                 "Content": "message",
                 "DisputeTypeCode": "BackupRequest",
                 "DisputeTypeDescription": "Backup Request",
                 "Documents": []
             })),
-        };
+        );
         form.parts.push(part);
         let bytes: Vec<u8> = form.into();
         let s = String::from_utf8(bytes).expect("Unable to convert bytes to string");
