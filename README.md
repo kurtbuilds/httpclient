@@ -38,36 +38,6 @@ the request body even in error cases.
 
 For Oauth2, use `Oauth2Flow` and the `Oauth2` middleware from `httpclient_oauth2`.
 
-### Note on Http 1.0
-
-`http` was recently upgraded to 1.0. However, `hyper_rustls` still depends on `0.2.x`. We are waiting for `hyper_rustls`
-before bumping our own dependency.
-
-```rust
-#[tokio::main]
-async fn main() {
-    let mut client = httpclient::Client::new()
-        // With this middleware, the script will only make the request once. After that, it replays from the filesystem
-        // and does not hit the remote server. The middleware has different modes to ignore recordings (to force refresh)
-        // and to prevent new requests (for running a test suite).
-        // The recordings are sanitized to hide secrets.
-        .with_middleware(httpclient::middleware::Recorder::new())
-        ;
-    let res = client.get("https://www.jsonip.com/")
-        .header("secret", "foo")
-        .await
-        .unwrap();
-    let res = res.text().unwrap();
-    
-    let res = client.get("https://www.jsonip.com/")
-        .header("secret", "foo")
-        .send()
-        .await
-        .unwrap();
-    // By using `send()`, we now can separately await the request body.
-    let res = res.text().await.unwrap();
-}
-```
 # Roadmap
 
 - [x] Hide secrets in Recorder. Hash & Eq checks for requests must respect hidden values.
