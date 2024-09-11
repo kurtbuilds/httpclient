@@ -1,4 +1,3 @@
-use http::header::{AsHeaderName, IntoHeaderName};
 use http::{header, HeaderMap, StatusCode};
 use rand::Rng;
 use std::str::FromStr;
@@ -127,7 +126,11 @@ mod tests {
     #[test]
     fn test_to_bytes() {
         let boundary = "zzz".to_string();
-        let mut form = Form::new().boundary(boundary.clone());
+        let mut form = Form {
+            content_type: "multipart/mixed".to_string(),
+            boundary: boundary.clone(),
+            parts: Vec::new(),
+        };
         let part = Part::request(Request::builder().uri("/farm/v1/animals/pony").body(InMemoryBody::Empty).unwrap());
         form.parts.push(part);
 
@@ -140,7 +143,11 @@ mod tests {
     #[test]
     fn test_to_bytes2() {
         let boundary = "zzz".to_string();
-        let mut form = Form::new().boundary(boundary.clone());
+        let mut form = Form {
+            content_type: "multipart/mixed".to_string(),
+            boundary: boundary.clone(),
+            parts: Vec::new(),
+        };
         let mut headers = HeaderMap::new();
         headers.insert("Content-Disposition", "form-data; name=\"MetaData\"".parse().unwrap());
         let part = Part::new(
