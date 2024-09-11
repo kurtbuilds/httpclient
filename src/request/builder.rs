@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE, CONTENT_LENGTH};
+use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, COOKIE};
 use http::uri::PathAndQuery;
 use http::{header, HeaderMap, HeaderValue, Method, Uri, Version};
 use serde::Serialize;
@@ -136,7 +136,10 @@ impl<'a, C> RequestBuilder<'a, C> {
     }
 
     #[must_use]
-    pub fn multipart<B>(mut self, form: Form<B>) -> Self where Form<B> : Into<Vec<u8>> {
+    pub fn multipart<B>(mut self, form: Form<B>) -> Self
+    where
+        Form<B>: Into<Vec<u8>>,
+    {
         let content_type = form.full_content_type();
         self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();
@@ -172,13 +175,9 @@ impl<'a, C, B: Default> RequestBuilder<'a, C, B> {
     }
 
     pub fn into_req_and_middleware(self) -> (Request<B>, Vec<Arc<dyn Middleware>>) {
-        let mut request = http::Request::builder()
-            .method(self.method)
-            .uri(self.uri)
-            .version(self.version);
+        let mut request = http::Request::builder().method(self.method).uri(self.uri).version(self.version);
         *request.headers_mut().unwrap() = self.headers;
-        let request = request.body(self.body.unwrap_or_default().into())
-            .unwrap();
+        let request = request.body(self.body.unwrap_or_default().into()).unwrap();
         (request, self.middlewares)
     }
 }
@@ -222,8 +221,12 @@ impl<'a, C, B> RequestBuilder<'a, C, B> {
     }
 
     #[must_use]
-    pub fn header(mut self, key: &str, value: &str) -> Self {
-        self.headers.insert(HeaderName::from_str(key).unwrap(), HeaderValue::from_str(value).unwrap());
+    pub fn header<K: TryInto<HeaderName>>(mut self, key: K, value: &str) -> Self
+    where
+        <K as TryInto<HeaderName>>::Error: std::fmt::Debug,
+    {
+        let header = key.try_into().expect("Failed to convert key to HeaderName");
+        self.headers.insert(header, HeaderValue::from_str(value).unwrap());
         self
     }
 
