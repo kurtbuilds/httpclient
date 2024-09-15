@@ -2,10 +2,9 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
-use http::{HeaderName, Method};
+use http::{Method};
 use http::Uri;
 use hyper::client::HttpConnector;
-use hyper::header::HeaderValue;
 use hyper_rustls::HttpsConnector;
 
 use crate::middleware::{Middleware, MiddlewareStack};
