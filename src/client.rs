@@ -2,9 +2,10 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
-use http::Method;
+use http::{HeaderName, Method};
 use http::Uri;
 use hyper::client::HttpConnector;
+use hyper::header::HeaderValue;
 use hyper_rustls::HttpsConnector;
 
 use crate::middleware::{Middleware, MiddlewareStack};
@@ -68,6 +69,12 @@ impl Client {
     }
 
     #[must_use]
+    pub fn middleware<T: Middleware + 'static>(mut self, middleware: T) -> Self {
+        self.middlewares.push(Arc::new(middleware));
+        self
+    }
+
+    #[must_use]
     /// Set a custom TLS connector to use for making requests.
     pub fn with_tls_connector(mut self, connector: HttpsConnector<HttpConnector>) -> Self {
         self.inner = hyper::Client::builder().build(connector);
@@ -104,33 +111,33 @@ impl Client {
     }
 
     #[must_use]
-    pub fn get(&self, url_or_path: &str) -> RequestBuilder<Client> {
-        self.request(Method::GET, url_or_path)
+    pub fn get(&self, url_or_path: impl AsRef<str>) -> RequestBuilder<Client> {
+        self.request(Method::GET, url_or_path.as_ref())
     }
 
     #[must_use]
-    pub fn post(&self, uri_or_path: &str) -> RequestBuilder<Client> {
-        self.request(Method::POST, uri_or_path)
+    pub fn post(&self, uri_or_path: impl AsRef<str>) -> RequestBuilder<Client> {
+        self.request(Method::POST, uri_or_path.as_ref())
     }
 
     #[must_use]
-    pub fn delete(&self, uri_or_path: &str) -> RequestBuilder {
-        self.request(Method::DELETE, uri_or_path)
+    pub fn delete(&self, uri_or_path: impl AsRef<str>) -> RequestBuilder {
+        self.request(Method::DELETE, uri_or_path.as_ref())
     }
 
     #[must_use]
-    pub fn put(&self, uri_or_path: &str) -> RequestBuilder {
-        self.request(Method::PUT, uri_or_path)
+    pub fn put(&self, uri_or_path: impl AsRef<str>) -> RequestBuilder {
+        self.request(Method::PUT, uri_or_path.as_ref())
     }
 
     #[must_use]
-    pub fn patch(&self, uri_or_path: &str) -> RequestBuilder {
-        self.request(Method::PATCH, uri_or_path)
+    pub fn patch(&self, uri_or_path: impl AsRef<str>) -> RequestBuilder {
+        self.request(Method::PATCH, uri_or_path.as_ref())
     }
 
     #[must_use]
-    pub fn request(&self, method: Method, uri_or_path: &str) -> RequestBuilder {
-        let uri = self.build_uri(uri_or_path);
+    pub fn request(&self, method: Method, uri_or_path: impl AsRef<str>) -> RequestBuilder {
+        let uri = self.build_uri(uri_or_path.as_ref());
         RequestBuilder::new(self, method, uri)
             .headers(self.default_headers.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .set_middlewares(self.middlewares.clone())
