@@ -12,9 +12,11 @@ use std::hash::Hasher;
 pub enum InMemoryBody {
     #[default]
     Empty,
+    // json must come before bytes, otherwise Recorder deserialization gets messed up, see
+    // response::memory::test_deserialize
+    Json(Value),
     Bytes(Vec<u8>),
     Text(String),
-    Json(Value),
 }
 
 impl TryInto<String> for InMemoryBody {
@@ -25,7 +27,10 @@ impl TryInto<String> for InMemoryBody {
             InMemoryBody::Empty => Ok(String::new()),
             InMemoryBody::Bytes(b) => String::from_utf8(b).map_err(std::convert::Into::into),
             InMemoryBody::Text(s) => Ok(s),
-            InMemoryBody::Json(val) => serde_json::to_string(&val).map_err(std::convert::Into::into),
+            InMemoryBody::Json(val) => match val {
+                Value::String(s) => Ok(s),
+                _ => serde_json::to_string(&val).map_err(std::convert::Into::into),
+            },
         }
     }
 }
@@ -38,7 +43,18 @@ impl TryInto<Bytes> for InMemoryBody {
             InMemoryBody::Empty => Ok(Bytes::new()),
             InMemoryBody::Bytes(b) => Ok(Bytes::from(b)),
             InMemoryBody::Text(s) => Ok(Bytes::from(s)),
-            InMemoryBody::Json(val) => Ok(Bytes::from(serde_json::to_string(&val)?)),
+            InMemoryBody::Json(val) => {
+                if let Value::Array(a) = &val {
+                    if a.iter().all(|v| v.is_number()) {
+                        let mut bytes = Vec::with_capacity(a.len());
+                        for v in a {
+                            bytes.push(v.as_u64().unwrap() as u8);
+                        }
+                        return Ok(Bytes::from(bytes));
+                    }
+                }
+                Ok(Bytes::from(serde_json::to_string(&val)?))
+            },
         }
     }
 }

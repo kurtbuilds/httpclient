@@ -21,7 +21,7 @@ bootstrap:
     cargo install cargo-edit
 
 test *args:
-    cargo test {{args}} -- --nocapture
+    cargo test {{args}}
 
 check:
     cargo check

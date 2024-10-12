@@ -171,4 +171,58 @@ mod tests {
         let serialized = String::from_utf8(serializer.into_inner().into_inner().unwrap()).unwrap();
         assert_eq!(serialized, r#"{"status":200,"headers":{},"body":{"Password":"**********","email":"amazing"}}"#);
     }
+
+    #[test]
+    fn test_deserialize_json_array() {
+        let data = r#"
+        {
+            "status": 200,
+            "headers": {
+              "x-powered-by": ""
+            },
+            "body": []
+        }"#;
+        let jd = &mut serde_json::Deserializer::from_str(data);
+        let deserialized: InMemoryResponse = serde_response::deserialize(jd).unwrap();
+        assert_eq!(deserialized.status(), StatusCode::OK);
+        assert_eq!(deserialized.headers().get("x-powered-by").unwrap().to_str().unwrap(), "");
+        let body: serde_json::Value = deserialized.json().unwrap();
+        assert!(body.is_array());
+    }
+
+    #[test]
+    fn test_deserialize_string() {
+        let data = r#"
+        {
+            "status": 200,
+            "headers": {
+              "x-powered-by": ""
+            },
+            "body": "foo"
+        }"#;
+        let jd = &mut serde_json::Deserializer::from_str(data);
+        let deserialized: InMemoryResponse = serde_response::deserialize(jd).unwrap();
+        assert_eq!(deserialized.status(), StatusCode::OK);
+        assert_eq!(deserialized.headers().get("x-powered-by").unwrap().to_str().unwrap(), "");
+        let body = deserialized.text().unwrap();
+        assert_eq!(body, "foo");
+    }
+
+    #[test]
+    fn test_deserialize_bytes() {
+        let data = r#"
+        {
+            "status": 200,
+            "headers": {
+              "x-powered-by": ""
+            },
+            "body": [102, 111, 111]
+        }"#;
+        let jd = &mut serde_json::Deserializer::from_str(data);
+        let deserialized: InMemoryResponse = serde_response::deserialize(jd).unwrap();
+        assert_eq!(deserialized.status(), StatusCode::OK);
+        assert_eq!(deserialized.headers().get("x-powered-by").unwrap().to_str().unwrap(), "");
+        let body = deserialized.bytes().unwrap();
+        assert_eq!(body.to_vec().as_slice(), b"foo");
+    }
 }
