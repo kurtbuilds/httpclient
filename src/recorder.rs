@@ -69,15 +69,14 @@ impl PartialEq for HashableRequest {
         if !(self.method() == other.method() && self.uri() == other.uri()) {
             return false;
         }
-        let x = self.body().text();
-        let s: std::borrow::Cow<'static, u8> = match self.body() {
+        let s: std::borrow::Cow<'_, [u8]> = match self.body() {
             InMemoryBody::Text(s) => s.as_bytes().into(),
             InMemoryBody::Empty => b"".into(),
             InMemoryBody::Bytes(s) => s.into(),
             InMemoryBody::Json(serde_json::Value::String(s)) => s.as_bytes().into(),
             InMemoryBody::Json(s) => serde_json::to_vec(s).unwrap().into(),
         };
-        let o: std::borrow::Cow<'static, u8> = match other.body() {
+        let o: std::borrow::Cow<'_, [u8]> = match other.body() {
             InMemoryBody::Text(s) => s.as_bytes().into(),
             InMemoryBody::Empty => b"".into(),
             InMemoryBody::Bytes(s) => s.into(),
