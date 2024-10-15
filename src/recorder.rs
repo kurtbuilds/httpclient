@@ -69,13 +69,22 @@ impl PartialEq for HashableRequest {
         if !(self.method() == other.method() && self.uri() == other.uri()) {
             return false;
         }
-        match (self.body(), other.body()) {
-            (InMemoryBody::Empty, InMemoryBody::Empty) => true,
-            (InMemoryBody::Text(ref a), InMemoryBody::Text(ref b)) => a == b,
-            (InMemoryBody::Bytes(ref a), InMemoryBody::Bytes(ref b)) => a == b,
-            (InMemoryBody::Json(ref a), InMemoryBody::Json(ref b)) => a == b,
-            _ => false,
-        }
+        let x = self.body().text();
+        let s: std::borrow::Cow<'static, u8> = match self.body() {
+            InMemoryBody::Text(s) => s.as_bytes().into(),
+            InMemoryBody::Empty => b"".into(),
+            InMemoryBody::Bytes(s) => s.into(),
+            InMemoryBody::Json(serde_json::Value::String(s)) => s.as_bytes().into(),
+            InMemoryBody::Json(s) => serde_json::to_vec(s).unwrap().into(),
+        };
+        let o: std::borrow::Cow<'static, u8> = match other.body() {
+            InMemoryBody::Text(s) => s.as_bytes().into(),
+            InMemoryBody::Empty => b"".into(),
+            InMemoryBody::Bytes(s) => s.into(),
+            InMemoryBody::Json(serde_json::Value::String(s)) => s.as_bytes().into(),
+            InMemoryBody::Json(s) => serde_json::to_vec(s).unwrap().into(),
+        };
+        s == o
     }
 }
 
