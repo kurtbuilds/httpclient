@@ -11,6 +11,9 @@ version = "0.23.15"
 [lib]
 doctest = false
 
+[features]
+mock = []
+
 [dependencies]
 async-trait = "0.1.52"
 cookie = { version = "0.18.0", features = ["percent-encode"] }

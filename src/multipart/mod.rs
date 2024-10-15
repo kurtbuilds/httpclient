@@ -1,14 +1,19 @@
+use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
+pub use form::Form;
 use http::{header, HeaderMap, StatusCode};
+pub use part::Part;
 use rand::Rng;
 use std::str::FromStr;
-pub use form::Form;
-pub use part::Part;
-use crate::{InMemoryBody, InMemoryRequest, InMemoryResponse};
 
-mod part;
 mod form;
+mod part;
 
 fn gen_boundary() -> String {
+    #[cfg(all(debug_assertions, feature = "mock"))]
+    if let Some(boundary) = mock::BOUNDARY.lock().unwrap().as_ref() {
+        return boundary.clone();
+    }
+
     let mut rng = rand::thread_rng();
 
     let a = rng.gen::<u64>();
@@ -17,6 +22,34 @@ fn gen_boundary() -> String {
     let d = rng.gen::<u64>();
 
     format!("{a:016x}-{b:016x}-{c:016x}-{d:016x}")
+}
+
+#[cfg(feature = "mock")]
+pub mod mock {
+    use super::*;
+
+    static BOUNDARY: Mutex<Option<String>> = Mutex::new(None);
+
+    pub fn set(s: String) {
+        *BOUNDARY.lock().unwrap() = Some(s);
+    }
+
+    pub fn clear() {
+        *BOUNDARY.lock().unwrap() = None;
+    }
+
+    pub struct BoundaryGuard;
+
+    impl Drop for BoundaryGuard {
+        fn drop(&mut self) {
+            clear();
+        }
+    }
+
+    pub fn scope(s: String) -> BoundaryGuard {
+        set(s);
+        BoundaryGuard
+    }
 }
 
 fn parse_headers(mut text: &str) -> Option<(HeaderMap, &str)> {
