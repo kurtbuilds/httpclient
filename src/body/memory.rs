@@ -54,7 +54,7 @@ impl TryInto<Bytes> for InMemoryBody {
                     }
                 }
                 Ok(Bytes::from(serde_json::to_string(&val)?))
-            },
+            }
         }
     }
 }
@@ -96,17 +96,22 @@ impl InMemoryBody {
 impl std::hash::Hash for InMemoryBody {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            InMemoryBody::Empty => state.write_u8(0),
+            InMemoryBody::Empty => {}
+            // InMemoryBody::Empty => state.write_u8(0),
             InMemoryBody::Bytes(b) => {
-                state.write_u8(1);
+                // state.write_u8(1);
                 state.write(b.as_slice());
             }
             InMemoryBody::Text(s) => {
-                state.write_u8(2);
+                // state.write_u8(2);
                 state.write(s.as_bytes());
             }
+            InMemoryBody::Json(serde_json::Value::String(s)) => {
+                state.write(s.as_bytes());
+                // state.write_u8(3);
+                // state.write(v.to_string().as_bytes());
+            }
             InMemoryBody::Json(v) => {
-                state.write_u8(3);
                 state.write(v.to_string().as_bytes());
             }
         }
