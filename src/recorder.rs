@@ -69,6 +69,8 @@ impl PartialEq for HashableRequest {
         if !(self.method() == other.method() && self.uri() == other.uri()) {
             return false;
         }
+        dbg!(self.body());
+        dbg!(other.body());
         let s: std::borrow::Cow<'_, [u8]> = match self.body() {
             InMemoryBody::Text(s) => s.as_bytes().into(),
             InMemoryBody::Empty => b"".into(),
