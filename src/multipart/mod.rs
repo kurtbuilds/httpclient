@@ -28,7 +28,7 @@ fn gen_boundary() -> String {
 pub mod mock {
     use super::*;
 
-    static BOUNDARY: Mutex<Option<String>> = Mutex::new(None);
+    pub(crate) static BOUNDARY: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
     pub fn set(s: String) {
         *BOUNDARY.lock().unwrap() = Some(s);
