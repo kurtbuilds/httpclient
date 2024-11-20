@@ -42,10 +42,11 @@ impl Next<'_> {
                 InMemoryBody::Json(val) => {
                     let content = serde_json::to_string(&val)?;
                     let len = content.len();
-                    parts.headers.entry(CONTENT_LENGTH).or_insert(len.into());
                     Bytes::from(content)
                 },
             };
+            let len = body.len();
+            parts.headers.entry(CONTENT_LENGTH).or_insert(len.into());
             let mut b = hyper::Request::builder().method(parts.method.as_str()).uri(parts.uri.to_string());
             for (k, v) in parts.headers.iter() {
                 b = b.header(k.as_str(), v.to_str().unwrap());
@@ -77,6 +78,8 @@ pub trait Middleware: Send + Sync + Debug {
 pub struct Retry {
     max_retries: usize,
     backoff_delay: Duration,
+    // empty vec will retry the default set
+    retry_codes: Vec<u16>,
 }
 
 fn calc_delay(res: &Response) -> Option<Duration> {
@@ -98,6 +101,7 @@ impl Default for Retry {
         Self {
             backoff_delay: Duration::from_secs(2),
             max_retries: 3,
+            retry_codes: Vec::new(),
         }
     }
 }
@@ -116,6 +120,11 @@ impl Retry {
     /// Set the maximum number of retries.
     pub fn max_retries(mut self, max_retries: usize) -> Self {
         self.max_retries = max_retries;
+        self
+    }
+
+    pub fn retry_codes(mut self, codes: Vec<u16>) -> Self {
+        self.retry_codes = codes;
         self
     }
 }
@@ -137,7 +146,13 @@ impl Middleware for Retry {
                     let status_as_u16 = status.as_u16();
 
                     // Can't use StatusCode here, as it doesn't implement 425/TOO_EARLY
-                    if !([429, 408, 425].contains(&status_as_u16) || status.is_server_error()) {
+                    let mut retry_codes = self.retry_codes.as_slice();
+                    dbg!(retry_codes);
+                    if retry_codes.is_empty() {
+                        retry_codes = &[429, 408, 425];
+                    }
+                    dbg!(retry_codes);
+                    if !(retry_codes.contains(&status_as_u16) || status.is_server_error()) {
                         return Ok(res);
                     }
 

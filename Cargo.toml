@@ -6,7 +6,7 @@ homepage = "https://github.com/kurtbuilds/httpclient"
 license = "MIT"
 name = "httpclient"
 repository = "https://github.com/kurtbuilds/httpclient"
-version = "0.23.18"
+version = "0.23.19"
 
 [lib]
 doctest = false
@@ -17,7 +17,6 @@ mock = []
 [dependencies]
 async-trait = "0.1.52"
 cookie = { version = "0.18.0", features = ["percent-encode"] }
-encoding_rs = "0.8.30"
 futures = "0.3.25"
 http = { version = "1.1.0" }
 indexmap = "2.1.0"
@@ -29,7 +28,6 @@ serde_qs = "0.13.0"
 tracing = "0.1.37"
 urlencoding = "2.1.0"
 walkdir = "2.3.2"
-serde_path_to_error = { version = "0.1.16", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 hyper = { version = "0.14.17", features = ["server"] }

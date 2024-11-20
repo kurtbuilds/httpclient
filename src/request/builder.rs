@@ -120,7 +120,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Sets content-type to `application/octet-stream` and the body to the supplied bytes.
     #[must_use]
     pub fn bytes(mut self, bytes: Vec<u8>) -> Self {
-        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(bytes.len()));
+        // self.headers.insert(CONTENT_LENGTH, HeaderValue::from(bytes.len()));
         self.body = Some(InMemoryBody::Bytes(bytes));
         self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("application/octet-stream"));
         self
@@ -129,7 +129,7 @@ impl<'a, C> RequestBuilder<'a, C> {
     /// Sets content-type to `text/plain` and the body to the supplied text.
     #[must_use]
     pub fn text(mut self, text: String) -> Self {
-        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(text.len()));
+        // self.headers.insert(CONTENT_LENGTH, HeaderValue::from(text.len()));
         self.body = Some(InMemoryBody::Text(text));
         self.headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static("text/plain"));
         self
@@ -143,12 +143,12 @@ impl<'a, C> RequestBuilder<'a, C> {
         let content_type = form.full_content_type();
         self.headers.entry(CONTENT_TYPE).or_insert(content_type.parse().unwrap());
         let body: Vec<u8> = form.into();
-        let len = body.len();
+        // let len = body.len();
         match String::from_utf8(body) {
             Ok(text) => self.body = Some(InMemoryBody::Text(text)),
             Err(bytes) => self.body = Some(InMemoryBody::Bytes(bytes.into_bytes())),
         }
-        self.headers.insert(CONTENT_LENGTH, HeaderValue::from(len));
+        // self.headers.insert(CONTENT_LENGTH, HeaderValue::from(len));
         self
     }
 }
