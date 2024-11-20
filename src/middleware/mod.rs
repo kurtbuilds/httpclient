@@ -41,7 +41,6 @@ impl Next<'_> {
                 InMemoryBody::Text(s) => Bytes::from(s),
                 InMemoryBody::Json(val) => {
                     let content = serde_json::to_string(&val)?;
-                    let len = content.len();
                     Bytes::from(content)
                 },
             };

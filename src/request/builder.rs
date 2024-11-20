@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, COOKIE};
+use http::header::{Entry, HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE};
 use http::uri::PathAndQuery;
 use http::{header, HeaderMap, HeaderValue, Method, Uri, Version};
 use serde::Serialize;
