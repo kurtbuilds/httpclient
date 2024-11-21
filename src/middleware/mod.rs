@@ -146,11 +146,9 @@ impl Middleware for Retry {
 
                     // Can't use StatusCode here, as it doesn't implement 425/TOO_EARLY
                     let mut retry_codes = self.retry_codes.as_slice();
-                    dbg!(retry_codes);
                     if retry_codes.is_empty() {
                         retry_codes = &[429, 408, 425];
                     }
-                    dbg!(retry_codes);
                     if !(retry_codes.contains(&status_as_u16) || status.is_server_error()) {
                         return Ok(res);
                     }
