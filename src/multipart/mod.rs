@@ -14,12 +14,12 @@ fn gen_boundary() -> String {
         return boundary.clone();
     }
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
-    let a = rng.gen::<u64>();
-    let b = rng.gen::<u64>();
-    let c = rng.gen::<u64>();
-    let d = rng.gen::<u64>();
+    let a = rng.random::<u64>();
+    let b = rng.random::<u64>();
+    let c = rng.random::<u64>();
+    let d = rng.random::<u64>();
 
     format!("{a:016x}-{b:016x}-{c:016x}-{d:016x}")
 }
