@@ -29,6 +29,8 @@ pub mod recorder;
 mod request;
 mod response;
 mod sanitize;
+#[cfg(feature = "oauth2")]
+pub mod oauth2;
 
 static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
 

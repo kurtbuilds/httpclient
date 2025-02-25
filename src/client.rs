@@ -32,7 +32,7 @@ what are the options?
 2. We want a way to pass in a partial middlewares list.
 3. but the order is funky. we'd want something like
     - recorder
-    - oauth
+    - oauth2
     - retry
     - follow
 */

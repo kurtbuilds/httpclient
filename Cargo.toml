@@ -13,6 +13,8 @@ doctest = false
 
 [features]
 mock = []
+oauth2 = []
+
 
 [dependencies]
 async-trait = "0.1.52"
@@ -35,3 +37,6 @@ hyper-rustls = "0.24.2"
 tokio = { version = "1.17.0", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+
+[dev-dependencies]
+text_io = "0.1.12"
