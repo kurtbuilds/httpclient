@@ -28,7 +28,7 @@ impl InMemoryResponseExt for InMemoryResponse {
 
     fn text(self) -> InMemoryResult<String> {
         let (_, body) = self.into_parts();
-        body.text()
+        body.into_text()
     }
 
     fn json<U: DeserializeOwned>(self) -> serde_json::Result<U> {

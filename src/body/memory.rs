@@ -4,6 +4,7 @@ use hyper::body::Bytes;
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::hash::Hasher;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +70,16 @@ impl InMemoryBody {
         }
     }
 
-    pub fn text(self) -> InMemoryResult<String> {
+    pub fn text(&self) -> InMemoryResult<Cow<str>> {
+        match self {
+            InMemoryBody::Empty => Ok(Cow::Borrowed("")),
+            InMemoryBody::Json(value) => serde_json::to_string(&value).map(Cow::Owned).map_err(Into::into),
+            InMemoryBody::Bytes(items) => std::str::from_utf8(items).map(Cow::Borrowed).map_err(Into::into),
+            InMemoryBody::Text(s) => Ok(Cow::Borrowed(s.as_str())),
+        }
+    }
+
+    pub fn into_text(self) -> InMemoryResult<String> {
         self.try_into()
     }
 

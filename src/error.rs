@@ -1,6 +1,7 @@
 use crate::{Body, InMemoryResponse, InMemoryResponseExt, Response};
 use http::StatusCode;
 use std::fmt::{Debug, Display, Formatter};
+use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 pub type Result<T = Response, E = Error> = std::result::Result<T, E>;
@@ -11,7 +12,7 @@ pub type ProtocolResult<T> = Result<T, ProtocolError>;
 #[derive(Debug)]
 pub enum ProtocolError {
     ConnectionError(hyper::Error),
-    Utf8Error(FromUtf8Error),
+    Utf8Error(Utf8Error),
     JsonError(serde_json::Error),
     IoError(std::io::Error),
     TooManyRedirects,
@@ -113,18 +114,21 @@ impl From<InMemoryError> for Error {
     }
 }
 
-impl<T: Debug> Display for Error<T> {
+impl Display for InMemoryError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::HttpError(r) => write!(f, "HttpError {{ res: {r:?} }}"),
+            Error::HttpError(r) => {
+                let body = r.body().text().ok().unwrap_or_else(|| format!("{:?}", r).into());
+                write!(f, "HttpError: {body}")
+            }
             Error::Protocol(p) => write!(f, "ProtocolError: {p}"),
         }
     }
 }
 
-impl<T: Debug> std::error::Error for Error<T> {}
+impl std::error::Error for InMemoryError {}
 
-impl serde::de::Error for Error {
+impl serde::de::Error for InMemoryError {
     fn custom<T: Display>(msg: T) -> Self {
         Error::Protocol(ProtocolError::JsonError(serde_json::Error::custom(msg.to_string())))
     }
@@ -150,13 +154,17 @@ impl<T> From<hyper::Error> for Error<T> {
 
 impl<T> From<FromUtf8Error> for Error<T> {
     fn from(value: FromUtf8Error) -> Self {
-        Error::Protocol(ProtocolError::Utf8Error(value))
+        Error::Protocol(ProtocolError::Utf8Error(value.utf8_error()))
     }
 }
-
 impl<T> From<ProtocolError> for Error<T> {
     fn from(value: ProtocolError) -> Self {
         Error::Protocol(value)
+    }
+}
+impl<T> From<Utf8Error> for Error<T> {
+    fn from(value: Utf8Error) -> Self {
+        Error::Protocol(ProtocolError::Utf8Error(value))
     }
 }
 
@@ -174,6 +182,12 @@ impl From<serde_json::Error> for ProtocolError {
 
 impl From<FromUtf8Error> for ProtocolError {
     fn from(value: FromUtf8Error) -> Self {
+        Self::Utf8Error(value.utf8_error())
+    }
+}
+
+impl From<Utf8Error> for ProtocolError {
+    fn from(value: Utf8Error) -> Self {
         Self::Utf8Error(value)
     }
 }

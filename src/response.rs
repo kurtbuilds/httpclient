@@ -37,7 +37,7 @@ impl ResponseExt for Response<Body> {
     async fn text(self) -> InMemoryResult<String> {
         let (_, body) = self.into_parts();
         let body = body.into_memory().await?;
-        body.text()
+        body.into_text()
     }
 
     async fn json<U: DeserializeOwned>(self) -> InMemoryResult<U> {
