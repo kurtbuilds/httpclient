@@ -33,7 +33,7 @@ walkdir = "2.3.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 hyper = { version = "0.14.17", features = ["server"] }
-hyper-rustls = "0.24.2"
+hyper-rustls = { version = "0.24.2" , features = ["webpki-roots"]}
 tokio = { version = "1.17.0", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
