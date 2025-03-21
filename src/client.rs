@@ -13,7 +13,7 @@ use crate::RequestBuilder;
 static DEFAULT_HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
 fn default_https_connector() -> &'static HttpsConnector<HttpConnector> {
-    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots().https_or_http().enable_http1().build())
+    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().https_or_http().enable_http1().build())
 }
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);

@@ -8,7 +8,7 @@ use cookie::time::format_description::well_known::Rfc2822;
 use http::header::{CONTENT_LENGTH, LOCATION};
 use hyper::body::Bytes;
 use tokio::time::Duration;
-
+use tracing::debug;
 pub use recorder::*;
 
 use crate::client::Client;
@@ -158,6 +158,7 @@ impl Middleware for Retry {
                     } else {
                         delay *= 2; // Exponential back-off
                     }
+                    debug!(completed_attempts=i, url=?request.uri(), delay=?delay, "Retrying request");
 
                     tokio::time::sleep(delay).await;
                 }
