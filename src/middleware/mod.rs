@@ -267,6 +267,25 @@ impl Middleware for Follow {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TotalTimeout {
+    timeout: Duration,
+}
+
+impl TotalTimeout {
+    pub fn new(timeout: Duration) -> Self {
+        Self { timeout }
+    }
+}
+
+#[async_trait]
+impl Middleware for TotalTimeout {
+    async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
+        tokio::time::timeout(self.timeout, next.run(request)).await
+            .map_err(|_| ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, "reading request timed out")))?
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
