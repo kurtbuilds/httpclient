@@ -89,7 +89,7 @@ fn calc_delay(res: &Response) -> Option<Duration> {
         Some(Duration::from_secs(retry_after))
     } else if let Ok(dt) = time::OffsetDateTime::parse(retry_after, &Rfc2822) {
         let dur = dt - time::OffsetDateTime::now_utc();
-        Some(dur.try_into().unwrap())
+        dur.try_into().ok()
     } else {
         None
     }
@@ -288,6 +288,7 @@ impl Middleware for TotalTimeout {
 
 #[cfg(test)]
 mod tests {
+    use http::HeaderValue;
     use super::*;
 
     #[test]
@@ -295,5 +296,15 @@ mod tests {
         let original = Uri::from_str("https://www.google.com/").unwrap();
         let url = fix_url(&original, "/test");
         assert_eq!(url.to_string(), "https://www.google.com/test");
+    }
+    #[test]
+    fn test_calc_retry() {
+        let s = "Tue, 25 Mar 2030 00:15:07 +0000";
+        let s: HeaderValue = s.parse().unwrap();
+        let res = Response::builder()
+            .header(http::header::RETRY_AFTER, s)
+            .body(Body::default()).unwrap();
+        let res = calc_delay(&res);
+        assert!(res.is_some());
     }
 }
