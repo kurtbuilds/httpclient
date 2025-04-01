@@ -78,7 +78,7 @@ pub struct Retry {
     max_retries: usize,
     backoff_delay: Duration,
     // empty vec will retry the default set
-    retry_codes: Vec<u16>,
+    retry_codes: std::borrow::Cow<'static, [u16]>,
 }
 
 fn calc_delay(res: &Response) -> Option<Duration> {
@@ -100,7 +100,7 @@ impl Default for Retry {
         Self {
             backoff_delay: Duration::from_secs(2),
             max_retries: 3,
-            retry_codes: Vec::new(),
+            retry_codes: std::borrow::Cow::Borrowed(&[408, 429, 425, 503])
         }
     }
 }
@@ -122,8 +122,8 @@ impl Retry {
         self
     }
 
-    pub fn retry_codes(mut self, codes: Vec<u16>) -> Self {
-        self.retry_codes = codes;
+    pub fn retry_codes(mut self, codes: impl Into<std::borrow::Cow<'static, [u16]>>) -> Self {
+        self.retry_codes = codes.into();
         self
     }
 }
@@ -145,11 +145,7 @@ impl Middleware for Retry {
                     let status_as_u16 = status.as_u16();
 
                     // Can't use StatusCode here, as it doesn't implement 425/TOO_EARLY
-                    let mut retry_codes = self.retry_codes.as_slice();
-                    if retry_codes.is_empty() {
-                        retry_codes = &[429, 408, 425];
-                    }
-                    if !(retry_codes.contains(&status_as_u16) || status.is_server_error()) {
+                    if !self.retry_codes.contains(&status_as_u16) {
                         return Ok(res);
                     }
 
