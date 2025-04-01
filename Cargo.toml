@@ -6,7 +6,7 @@ homepage = "https://github.com/kurtbuilds/httpclient"
 license = "MIT"
 name = "httpclient"
 repository = "https://github.com/kurtbuilds/httpclient"
-version = "0.25.4"
+version = "0.25.5"
 
 [lib]
 doctest = false
