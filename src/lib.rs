@@ -2,6 +2,8 @@
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub use body::{Body, InMemoryBody};
+#[cfg(feature = "stream")]
+pub use body::DataStream;
 pub use client::Client;
 pub use error::{Error, InMemoryError, InMemoryResult, ProtocolError, ProtocolResult, Result};
 pub use http::{header, header::HeaderName, Method, StatusCode, Uri};

@@ -2,6 +2,13 @@ use http::HeaderValue;
 use http_body_util::BodyExt;
 use http_body::Body as HttpBodyTrait;
 
+#[cfg(feature = "stream")]
+use futures_core::Stream;
+#[cfg(feature = "stream")]
+use std::pin::Pin;
+#[cfg(feature = "stream")]
+use std::task::{Context, Poll};
+
 pub use memory::*;
 
 use crate::error::ProtocolResult;
@@ -101,6 +108,48 @@ impl From<InMemoryBody> for http_body_util::Full<bytes::Bytes> {
 impl From<hyper::body::Incoming> for Body {
     fn from(val: hyper::body::Incoming) -> Self {
         Body::Incoming(val)
+    }
+}
+
+#[cfg(feature = "stream")]
+pub struct DataStream(pub Body);
+
+#[cfg(feature = "stream")]
+impl Stream for DataStream {
+    type Item = crate::Result<bytes::Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match &mut self.0 {
+            Body::Incoming(incoming) => {
+                match Pin::new(incoming).poll_frame(cx) {
+                    Poll::Ready(Some(Ok(frame))) => {
+                        if let Ok(data) = frame.into_data() {
+                            Poll::Ready(Some(Ok(data)))
+                        } else {
+                            // Skip trailers and continue polling
+                            self.poll_next(cx)
+                        }
+                    }
+                    Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(crate::Error::Protocol(e.into())))),
+                    Poll::Ready(None) => Poll::Ready(None),
+                    Poll::Pending => Poll::Pending,
+                }
+            }
+            Body::InMemory(memory_body) => {
+                // For in-memory bodies, yield the entire content as a single chunk
+                let bytes = match std::mem::take(memory_body).bytes() {
+                    Ok(bytes) => bytes,
+                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                };
+                if bytes.is_empty() {
+                    Poll::Ready(None)
+                } else {
+                    // Replace with empty to ensure we only yield once
+                    *memory_body = InMemoryBody::Empty;
+                    Poll::Ready(Some(Ok(bytes)))
+                }
+            }
+        }
     }
 }
 

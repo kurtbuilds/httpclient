@@ -3,6 +3,9 @@ use http::Response;
 use hyper::body::Bytes;
 use serde::de::DeserializeOwned;
 
+#[cfg(feature = "stream")]
+use futures_core::Stream;
+
 pub use in_memory_ext::*;
 
 use crate::body::Body;
@@ -20,6 +23,10 @@ where
     async fn json<U: DeserializeOwned>(self) -> InMemoryResult<U>;
     /// Get body as bytes.
     async fn bytes(self) -> InMemoryResult<Bytes>;
+    /// Stream the response body as a stream of bytes chunks.
+    #[cfg(feature = "stream")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+    fn bytes_stream(self) -> impl Stream<Item = crate::Result<Bytes>>;
     fn get_cookie(&self, name: &str) -> Option<&str>;
 }
 
@@ -51,6 +58,13 @@ impl ResponseExt for Response<Body> {
         let (_, body) = self.into_parts();
         let body = body.into_memory().await?;
         body.bytes()
+    }
+
+    #[cfg(feature = "stream")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
+    fn bytes_stream(self) -> impl Stream<Item = crate::Result<Bytes>> {
+        let (_, body) = self.into_parts();
+        crate::body::DataStream(body)
     }
 
     fn get_cookie(&self, name: &str) -> Option<&str> {

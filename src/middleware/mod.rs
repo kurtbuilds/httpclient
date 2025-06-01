@@ -3,13 +3,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use cookie::time;
 use cookie::time::format_description::well_known::Rfc2822;
 use http::header::{CONTENT_LENGTH, LOCATION};
-use bytes::Bytes;
+pub use recorder::*;
 use tokio::time::Duration;
 use tracing::debug;
-pub use recorder::*;
 
 use crate::client::Client;
 use crate::error::{ProtocolError, ProtocolResult};
@@ -42,7 +42,7 @@ impl Next<'_> {
                 InMemoryBody::Json(val) => {
                     let content = serde_json::to_string(&val)?;
                     Bytes::from(content)
-                },
+                }
             };
             let len = body.len();
             parts.headers.entry(CONTENT_LENGTH).or_insert(len.into());
@@ -57,7 +57,8 @@ impl Next<'_> {
             let mut b = Response::builder().status(parts.status.as_u16());
             let h = b.headers_mut().unwrap();
             for (k, v) in parts.headers.into_iter() {
-                h.insert(k.unwrap(), v);
+                let Some(key) = k else { continue };
+                h.insert(key, v);
             }
             let res = b.body(body).expect("Failed to build response");
             Ok(res)
@@ -101,7 +102,7 @@ impl Default for Retry {
         Self {
             backoff_delay: Duration::from_secs(2),
             max_retries: 3,
-            retry_codes: std::borrow::Cow::Borrowed(&[408, 429, 425, 503])
+            retry_codes: std::borrow::Cow::Borrowed(&[408, 429, 425, 503]),
         }
     }
 }
@@ -278,15 +279,16 @@ impl TotalTimeout {
 #[async_trait]
 impl Middleware for TotalTimeout {
     async fn handle(&self, request: InMemoryRequest, next: Next<'_>) -> ProtocolResult<Response> {
-        tokio::time::timeout(self.timeout, next.run(request)).await
+        tokio::time::timeout(self.timeout, next.run(request))
+            .await
             .map_err(|_| ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::TimedOut, "reading request timed out")))?
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use http::HeaderValue;
     use super::*;
+    use http::HeaderValue;
 
     #[test]
     fn test_relative_route() {
@@ -298,9 +300,7 @@ mod tests {
     fn test_calc_retry() {
         let s = "Tue, 25 Mar 2030 00:15:07 +0000";
         let s: HeaderValue = s.parse().unwrap();
-        let res = Response::builder()
-            .header(http::header::RETRY_AFTER, s)
-            .body(Body::default()).unwrap();
+        let res = Response::builder().header(http::header::RETRY_AFTER, s).body(Body::default()).unwrap();
         let res = calc_delay(&res);
         assert!(res.is_some());
     }

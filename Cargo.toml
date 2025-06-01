@@ -14,12 +14,14 @@ doctest = false
 [features]
 mock = []
 oauth2 = []
+stream = []
 
 [dependencies]
 async-trait = "0.1.52"
 bytes = "1.0"
 cookie = { version = "0.18.0", features = ["percent-encode"] }
 futures = "0.3.25"
+futures-core = "0.3.25"
 http = { version = "1.1.0" }
 http-body = "1.0"
 http-body-util = "0.1"
