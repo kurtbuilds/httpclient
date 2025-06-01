@@ -3,12 +3,12 @@ use http::Response;
 use hyper::body::Bytes;
 use serde::de::DeserializeOwned;
 
-pub use memory::*;
+pub use in_memory_ext::*;
 
 use crate::body::Body;
 use crate::{InMemoryResult, Result};
 
-mod memory;
+mod in_memory_ext;
 
 #[async_trait]
 pub trait ResponseExt
