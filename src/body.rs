@@ -11,14 +11,12 @@ mod memory;
 #[derive(Debug)]
 pub enum Body {
     InMemory(InMemoryBody),
-    Hyper(http_body_util::Full<bytes::Bytes>),
     Incoming(hyper::body::Incoming),
 }
 
 impl Body {
     pub fn is_empty(&self) -> bool {
         match self {
-            Body::Hyper(b) => b.size_hint().upper() == Some(0),
             Body::Incoming(b) => b.size_hint().upper() == Some(0),
             Body::InMemory(m) => m.is_empty(),
         }
@@ -27,10 +25,6 @@ impl Body {
     pub async fn into_memory(self) -> ProtocolResult<InMemoryBody> {
         match self {
             Body::InMemory(m) => Ok(m),
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper_body.collect().await.unwrap().to_bytes();
-                Ok(InMemoryBody::Bytes(bytes.to_vec()))
-            }
             Body::Incoming(incoming_body) => {
                 let bytes = incoming_body.collect().await?.to_bytes();
                 Ok(InMemoryBody::Bytes(bytes.to_vec()))
@@ -41,10 +35,6 @@ impl Body {
     pub async fn into_content_type(self, content_type: Option<&HeaderValue>) -> ProtocolResult<InMemoryBody> {
         match self {
             Body::InMemory(m) => Ok(m),
-            Body::Hyper(hyper_body) => {
-                let bytes = hyper_body.collect().await.unwrap().to_bytes();
-                Self::process_bytes(bytes, content_type)
-            }
             Body::Incoming(incoming_body) => {
                 let bytes = incoming_body.collect().await?.to_bytes();
                 Self::process_bytes(bytes, content_type)
@@ -87,7 +77,6 @@ impl From<InMemoryBody> for Body {
 impl From<Body> for http_body_util::Full<bytes::Bytes> {
     fn from(val: Body) -> Self {
         match val {
-            Body::Hyper(body) => body,
             Body::InMemory(body) => body.into(),
             Body::Incoming(_) => panic!("Cannot convert Incoming body to Full body directly"),
         }
@@ -108,11 +97,6 @@ impl From<InMemoryBody> for http_body_util::Full<bytes::Bytes> {
     }
 }
 
-impl From<http_body_util::Full<bytes::Bytes>> for Body {
-    fn from(val: http_body_util::Full<bytes::Bytes>) -> Self {
-        Body::Hyper(val)
-    }
-}
 
 impl From<hyper::body::Incoming> for Body {
     fn from(val: hyper::body::Incoming) -> Self {
