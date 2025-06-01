@@ -1,5 +1,6 @@
 use http::HeaderValue;
-use hyper::body::HttpBody;
+use http_body_util::BodyExt;
+use http_body::Body as HttpBodyTrait;
 
 pub use memory::*;
 
@@ -10,13 +11,15 @@ mod memory;
 #[derive(Debug)]
 pub enum Body {
     InMemory(InMemoryBody),
-    Hyper(hyper::Body),
+    Hyper(http_body_util::Full<bytes::Bytes>),
+    Incoming(hyper::body::Incoming),
 }
 
 impl Body {
     pub fn is_empty(&self) -> bool {
         match self {
             Body::Hyper(b) => b.size_hint().upper() == Some(0),
+            Body::Incoming(b) => b.size_hint().upper() == Some(0),
             Body::InMemory(m) => m.is_empty(),
         }
     }
@@ -25,7 +28,11 @@ impl Body {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
+                let bytes = hyper_body.collect().await.unwrap().to_bytes();
+                Ok(InMemoryBody::Bytes(bytes.to_vec()))
+            }
+            Body::Incoming(incoming_body) => {
+                let bytes = incoming_body.collect().await?.to_bytes();
                 Ok(InMemoryBody::Bytes(bytes.to_vec()))
             }
         }
@@ -35,24 +42,32 @@ impl Body {
         match self {
             Body::InMemory(m) => Ok(m),
             Body::Hyper(hyper_body) => {
-                let bytes = hyper::body::to_bytes(hyper_body).await?;
-                let content_type = content_type.and_then(|t| t.to_str().ok()).and_then(|t| t.split(';').next());
-                match content_type {
-                    Some("application/json") => {
-                        let value = serde_json::from_slice(&bytes)?;
-                        Ok(InMemoryBody::Json(value))
-                    }
-                    Some("application/octet-stream") => Ok(InMemoryBody::Bytes(bytes.to_vec())),
-                    _ if bytes.is_empty() => Ok(InMemoryBody::Empty),
-                    _ => match String::from_utf8(bytes.to_vec()) {
-                        Ok(text) => Ok(InMemoryBody::Text(text)),
-                        Err(e) => {
-                            let bytes = e.into_bytes();
-                            Ok(InMemoryBody::Bytes(bytes))
-                        }
-                    },
-                }
+                let bytes = hyper_body.collect().await.unwrap().to_bytes();
+                Self::process_bytes(bytes, content_type)
             }
+            Body::Incoming(incoming_body) => {
+                let bytes = incoming_body.collect().await?.to_bytes();
+                Self::process_bytes(bytes, content_type)
+            }
+        }
+    }
+
+    fn process_bytes(bytes: bytes::Bytes, content_type: Option<&HeaderValue>) -> ProtocolResult<InMemoryBody> {
+        let content_type = content_type.and_then(|t| t.to_str().ok()).and_then(|t| t.split(';').next());
+        match content_type {
+            Some("application/json") => {
+                let value = serde_json::from_slice(&bytes)?;
+                Ok(InMemoryBody::Json(value))
+            }
+            Some("application/octet-stream") => Ok(InMemoryBody::Bytes(bytes.to_vec())),
+            _ if bytes.is_empty() => Ok(InMemoryBody::Empty),
+            _ => match String::from_utf8(bytes.to_vec()) {
+                Ok(text) => Ok(InMemoryBody::Text(text)),
+                Err(e) => {
+                    let bytes = e.into_bytes();
+                    Ok(InMemoryBody::Bytes(bytes))
+                }
+            },
         }
     }
 }
@@ -69,32 +84,39 @@ impl From<InMemoryBody> for Body {
     }
 }
 
-impl From<Body> for hyper::Body {
+impl From<Body> for http_body_util::Full<bytes::Bytes> {
     fn from(val: Body) -> Self {
         match val {
             Body::Hyper(body) => body,
             Body::InMemory(body) => body.into(),
+            Body::Incoming(_) => panic!("Cannot convert Incoming body to Full body directly"),
         }
     }
 }
 
-impl From<InMemoryBody> for hyper::Body {
+impl From<InMemoryBody> for http_body_util::Full<bytes::Bytes> {
     fn from(val: InMemoryBody) -> Self {
         match val {
-            InMemoryBody::Empty => hyper::Body::empty(),
-            InMemoryBody::Text(s) => hyper::Body::from(s),
-            InMemoryBody::Bytes(b) => hyper::Body::from(b),
+            InMemoryBody::Empty => http_body_util::Full::new(bytes::Bytes::new()),
+            InMemoryBody::Text(s) => http_body_util::Full::new(bytes::Bytes::from(s)),
+            InMemoryBody::Bytes(b) => http_body_util::Full::new(bytes::Bytes::from(b)),
             InMemoryBody::Json(value) => {
                 let b = serde_json::to_vec(&value).unwrap();
-                hyper::Body::from(b)
+                http_body_util::Full::new(bytes::Bytes::from(b))
             }
         }
     }
 }
 
-impl From<hyper::Body> for Body {
-    fn from(val: hyper::Body) -> Self {
+impl From<http_body_util::Full<bytes::Bytes>> for Body {
+    fn from(val: http_body_util::Full<bytes::Bytes>) -> Self {
         Body::Hyper(val)
+    }
+}
+
+impl From<hyper::body::Incoming> for Body {
+    fn from(val: hyper::body::Incoming) -> Self {
+        Body::Incoming(val)
     }
 }
 

@@ -152,6 +152,12 @@ impl<T> From<hyper::Error> for Error<T> {
     }
 }
 
+impl<T> From<hyper_util::client::legacy::Error> for Error<T> {
+    fn from(value: hyper_util::client::legacy::Error) -> Self {
+        Error::Protocol(ProtocolError::IoError(std::io::Error::new(std::io::ErrorKind::Other, value.to_string())))
+    }
+}
+
 impl<T> From<FromUtf8Error> for Error<T> {
     fn from(value: FromUtf8Error) -> Self {
         Error::Protocol(ProtocolError::Utf8Error(value.utf8_error()))
@@ -171,6 +177,12 @@ impl<T> From<Utf8Error> for Error<T> {
 impl From<hyper::Error> for ProtocolError {
     fn from(value: hyper::Error) -> Self {
         Self::ConnectionError(value)
+    }
+}
+
+impl From<hyper_util::client::legacy::Error> for ProtocolError {
+    fn from(value: hyper_util::client::legacy::Error) -> Self {
+        Self::IoError(std::io::Error::new(std::io::ErrorKind::Other, value.to_string()))
     }
 }
 

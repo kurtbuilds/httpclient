@@ -15,12 +15,14 @@ doctest = false
 mock = []
 oauth2 = []
 
-
 [dependencies]
 async-trait = "0.1.52"
+bytes = "1.0"
 cookie = { version = "0.18.0", features = ["percent-encode"] }
 futures = "0.3.25"
 http = { version = "1.1.0" }
+http-body = "1.0"
+http-body-util = "0.1"
 indexmap = "2.1.0"
 rand = "0.9.0"
 regex = "1.7.1"
@@ -32,8 +34,9 @@ urlencoding = "2.1.0"
 walkdir = "2.3.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-hyper = { version = "0.14.17", features = ["server"] }
-hyper-rustls = { version = "0.24.2" }
+hyper = { version = "1.0", features = ["server", "http1", "http2", "client"] }
+hyper-rustls = { version = "0.27" }
+hyper-util = { version = "0.1", features = ["client", "client-legacy"] }
 tokio = { version = "1.17.0", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

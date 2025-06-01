@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use cookie::time;
 use cookie::time::format_description::well_known::Rfc2822;
 use http::header::{CONTENT_LENGTH, LOCATION};
-use hyper::body::Bytes;
+use bytes::Bytes;
 use tokio::time::Duration;
 use tracing::debug;
 pub use recorder::*;
@@ -50,13 +50,14 @@ impl Next<'_> {
             for (k, v) in parts.headers.iter() {
                 b = b.header(k.as_str(), v.to_str().unwrap());
             }
-            let request = b.body(hyper::Body::from(body)).expect("Failed to build request");
+            let request = b.body(http_body_util::Full::new(body)).expect("Failed to build request");
             let res = self.client.inner.request(request).await?;
             let (parts, body) = res.into_parts();
             let body: Body = body.into();
             let mut b = Response::builder().status(parts.status.as_u16());
-            for (k, v) in parts.headers.iter() {
-                b = b.header(k.as_str(), v.to_str().unwrap());
+            let h = b.headers_mut().unwrap();
+            for (k, v) in parts.headers.into_iter() {
+                h.insert(k.unwrap(), v);
             }
             let res = b.body(body).expect("Failed to build response");
             Ok(res)
