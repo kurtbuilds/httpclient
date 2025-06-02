@@ -1,8 +1,8 @@
 use std::fmt::Debug;
+use async_trait::async_trait;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use cookie::time;
 use cookie::time::format_description::well_known::Rfc2822;

@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
+use async_trait::async_trait;
 use std::sync::RwLock;
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{header, HeaderName, InMemoryRequest, Method, Middleware, Next, RequestBuilder, ProtocolResult, Response, Client};
