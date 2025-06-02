@@ -2,10 +2,10 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
-use http::{Method};
+use http::Method;
 use http::Uri;
-use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_rustls::HttpsConnector;
+use hyper_util::client::legacy::connect::HttpConnector;
 
 use crate::middleware::{Middleware, MiddlewareStack};
 use crate::RequestBuilder;
@@ -13,7 +13,15 @@ use crate::RequestBuilder;
 static DEFAULT_HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLock::new();
 
 fn default_https_connector() -> &'static HttpsConnector<HttpConnector> {
-    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().unwrap().https_or_http().enable_http1().build())
+    DEFAULT_HTTPS_CONNECTOR.get_or_init(|| {
+        rustls::crypto::aws_lc_rs::default_provider().install_default().ok();
+        hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .unwrap()
+            .https_or_http()
+            .enable_http1()
+            .build()
+    })
 }
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
