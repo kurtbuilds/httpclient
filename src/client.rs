@@ -14,7 +14,7 @@ static DEFAULT_HTTPS_CONNECTOR: OnceLock<HttpsConnector<HttpConnector>> = OnceLo
 
 fn default_https_connector() -> &'static HttpsConnector<HttpConnector> {
     DEFAULT_HTTPS_CONNECTOR.get_or_init(|| {
-        rustls::crypto::aws_lc_rs::default_provider().install_default().ok();
+        rustls::crypto::aws_lc_rs::default_provider().install_default().expect("failed to set default provider");
         hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
             .unwrap()
